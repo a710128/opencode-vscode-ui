@@ -55,20 +55,25 @@ const markdown = new MarkdownIt({
   breaks: true,
   linkify: true,
   highlight(value: string, language: string) {
-    if (language && hljs.getLanguage(language)) {
-      return `<pre><code class="hljs language-${language}">${hljs.highlight(value, { language }).value}</code></pre>`
-    }
-
-    return `<pre><code class="hljs">${escapeHtml(value)}</code></pre>`
+    return renderMarkdownCodeWindow(value, language)
   },
 })
 
 const linkDefault = markdown.renderer.rules.link_open
+const copyTipTimers = new WeakMap<HTMLButtonElement, number>()
+
 markdown.renderer.rules.link_open = (...args: Parameters<NonNullable<typeof linkDefault>>) => {
   const [tokens, idx, options, env, self] = args
   tokens[idx]?.attrSet("target", "_blank")
   tokens[idx]?.attrSet("rel", "noreferrer noopener")
   return linkDefault ? linkDefault(tokens, idx, options, env, self) : self.renderToken(tokens, idx, options)
+}
+
+const codeInlineDefault = markdown.renderer.rules.code_inline
+markdown.renderer.rules.code_inline = (...args: Parameters<NonNullable<typeof codeInlineDefault>>) => {
+  const [tokens, idx, options, env, self] = args
+  tokens[idx]?.attrSet("class", "oc-inlineCode")
+  return codeInlineDefault ? codeInlineDefault(tokens, idx, options, env, self) : self.renderToken(tokens, idx, options)
 }
 
 if (initialRef) {
@@ -1142,7 +1147,7 @@ function ToolTodosPanel({ part, active = false }: { part: Extract<MessagePart, {
   const todos = toolTodos(part)
   const status = part.state?.status || "pending"
   return (
-    <section className={`oc-part oc-part-tool oc-toolPanel${active ? " is-active" : ""}${status === "completed" ? " is-completed" : ""}`}>
+    <section className={`oc-part oc-part-tool oc-toolPanel oc-toolPanel-todos${active ? " is-active" : ""}${status === "completed" ? " is-completed" : ""}`}>
       <div className="oc-partHeader">
         <div className="oc-toolHeaderMain">
           <span className="oc-kicker">to-dos</span>
@@ -1244,7 +1249,37 @@ function EmptyState({ title, text }: { title: string; text: string }) {
 function MarkdownBlock({ content, className = "" }: { content: string; className?: string }) {
   const html = React.useMemo(() => markdown.render(content || ""), [content])
   return (
-    <div className={`oc-markdown${className ? ` ${className}` : ""}`} dangerouslySetInnerHTML={{ __html: html }} />
+    <div
+      className={`oc-markdown${className ? ` ${className}` : ""}`}
+      dangerouslySetInnerHTML={{ __html: html }}
+      onClick={(event) => {
+        const target = event.target
+        if (!(target instanceof Element)) {
+          return
+        }
+        const button = target.closest("[data-copy-code]")
+        if (!(button instanceof HTMLButtonElement)) {
+          return
+        }
+        const value = button.getAttribute("data-copy-code") || ""
+        if (!value) {
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        button.blur()
+        const timer = copyTipTimers.get(button)
+        if (timer) {
+          window.clearTimeout(timer)
+        }
+        button.setAttribute("data-copied", "true")
+        copyTipTimers.set(button, window.setTimeout(() => {
+          button.removeAttribute("data-copied")
+          copyTipTimers.delete(button)
+        }, 1200))
+        void copyText(value)
+      }}
+    />
   )
 }
 
@@ -2298,6 +2333,100 @@ function highlightCode(value: string, language: string) {
     return hljs.highlight(value, { language }).value
   }
   return hljs.highlightAuto(value).value
+}
+
+function renderMarkdownCodeWindow(value: string, language: string) {
+  const lang = normalizeCodeLanguage(language)
+  const title = lang ? capitalize(lang) : "Code"
+  const lines = codeWindowRows(value, lang)
+  const gutter = codeWindowGutter(value)
+  return [
+    '<section class="oc-outputWindow oc-outputWindow-markdownCode">',
+    '<div class="oc-outputWindowHead">',
+    '<div class="oc-outputWindowTitleRow">',
+    '<span class="oc-outputWindowAction">Code</span>',
+    `<span class="oc-outputWindowTitle">${escapeHtml(title)}</span>`,
+    '</div>',
+    '<button type="button" class="oc-outputWindowCopyBtn" aria-label="Copy code"',
+    ` data-copy-code="${escapeAttribute(value)}">`,
+    '<svg class="oc-outputWindowCopyIcon" viewBox="0 0 16 16" aria-hidden="true">',
+    '<rect x="5" y="3" width="8" height="10" rx="1.5" />',
+    '<path d="M3.5 10.5V5.5c0-.828.672-1.5 1.5-1.5h5" />',
+    '</svg>',
+    '<span class="oc-outputWindowCopyTip">Copied!</span>',
+    '</button>',
+    '</div>',
+    '<div class="oc-outputWindowBody">',
+    '<div class="oc-outputWindowBodyInner">',
+    `<pre class="oc-codeWindowBody" style="--oc-codeWindow-gutter:${gutter}"><code class="oc-codeWindowText">`,
+    lines,
+    '</code></pre>',
+    '</div>',
+    '</div>',
+    '</section>',
+  ].join("")
+}
+
+function codeWindowRows(value: string, language: string) {
+  const rows = normalizedLines(value)
+  return rows.map((line, index) => {
+    const html = highlightCode(line, language)
+    return [
+      '<span class="oc-codeWindowLine">',
+      `<span class="oc-codeWindowLineNo">${index + 1}</span>`,
+      `<span class="oc-codeWindowLineText hljs${language ? ` language-${escapeAttribute(language)}` : ""}">${html || " "}</span>`,
+      '</span>',
+    ].join("")
+  }).join("")
+}
+
+function normalizeCodeLanguage(value: string) {
+  const lang = value.trim().toLowerCase().split(/\s+/)[0] || ""
+  if (!lang) {
+    return ""
+  }
+  if (hljs.getLanguage(lang)) {
+    return lang
+  }
+  if (lang === "ts") return "typescript"
+  if (lang === "js") return "javascript"
+  if (lang === "md") return "markdown"
+  if (lang === "sh" || lang === "shell") return "bash"
+  if (lang === "yml") return "yaml"
+  return ""
+}
+
+function copyText(value: string) {
+  const clipboard = window.navigator?.clipboard
+  if (clipboard?.writeText) {
+    return clipboard.writeText(value)
+  }
+  const input = document.createElement("textarea")
+  input.value = value
+  input.setAttribute("readonly", "true")
+  input.style.position = "absolute"
+  input.style.left = "-9999px"
+  document.body.appendChild(input)
+  input.select()
+  document.execCommand("copy")
+  document.body.removeChild(input)
+  return Promise.resolve()
+}
+
+function normalizedLines(value: string) {
+  return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n")
+}
+
+function codeWindowGutter(value: string) {
+  return `calc(${Math.max(String(normalizedLines(value).length).length, 2)}ch + 12px)`
+}
+
+function escapeAttribute(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
 }
 
 function toolTodos(part: Extract<MessagePart, { type: "tool" }>) {

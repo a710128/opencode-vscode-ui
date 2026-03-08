@@ -23,6 +23,27 @@
   --oc-outputWindow-body-fg: color-mix(in srgb, var(--oc-accent) 86%, var(--oc-fg-primary) 14%);
   --oc-outputWindow-toggle-bg: color-mix(in srgb, var(--oc-accent) 70%, var(--oc-surface-block) 30%);
   --oc-outputWindow-toggle-hover: color-mix(in srgb, var(--oc-accent) 62%, var(--oc-surface-block) 38%);
+  --oc-md-text: var(--oc-fg-primary);
+  --oc-md-heading: var(--oc-fg-primary);
+  --oc-md-link: var(--vscode-terminal-ansiBlue);
+  --oc-md-link-text: var(--vscode-terminal-ansiCyan);
+  --oc-md-code: var(--vscode-terminal-ansiGreen);
+  --oc-md-quote: var(--vscode-terminal-ansiYellow);
+  --oc-md-emph: #ff966c;
+  --oc-md-strong: var(--oc-fg-primary);
+  --oc-md-rule: color-mix(in srgb, var(--oc-fg-primary) 32%, transparent 68%);
+  --oc-md-list: var(--vscode-terminal-ansiBlue);
+  --oc-md-list-enum: var(--vscode-terminal-ansiCyan);
+  --oc-md-code-block: var(--oc-fg-primary);
+  --oc-md-syntax-comment: color-mix(in srgb, var(--oc-muted) 88%, var(--vscode-terminal-ansiBlack) 12%);
+  --oc-md-syntax-keyword: var(--vscode-terminal-ansiMagenta);
+  --oc-md-syntax-function: var(--vscode-terminal-ansiBlue);
+  --oc-md-syntax-variable: var(--vscode-terminal-ansiYellow);
+  --oc-md-syntax-string: var(--vscode-terminal-ansiGreen);
+  --oc-md-syntax-number: var(--vscode-terminal-ansiYellow);
+  --oc-md-syntax-type: var(--vscode-terminal-ansiCyan);
+  --oc-md-syntax-operator: var(--vscode-terminal-ansiCyan);
+  --oc-md-syntax-punctuation: var(--oc-fg-primary);
   --oc-diff-context: #828bb8;
   --oc-diff-lineNo: #292e42;
   --oc-diff-add-fg: #4fd6be;
@@ -389,6 +410,10 @@ button {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--oc-accent) 18%, transparent 82%);
 }
 
+.oc-toolPanel-todos {
+  background: color-mix(in srgb, var(--oc-accent) 10%, var(--oc-surface-block) 90%);
+}
+
 .oc-toolPanel-files {
   gap: 10px;
 }
@@ -462,10 +487,96 @@ button {
   height: 14px;
 }
 
+.oc-outputWindowCopyBtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--oc-outputWindow-head-fg) 84%, transparent 16%);
+  cursor: pointer;
+}
+
+.oc-outputWindowCopyBtn:hover {
+  color: var(--oc-outputWindow-head-fg);
+}
+
+.oc-outputWindowCopyTip {
+  animation: none;
+}
+
+@keyframes oc-copyTipFade {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) translateX(2px);
+  }
+
+  15% {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+
+  75% {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) translateX(-2px);
+  }
+}
+
+.oc-outputWindowCopyTip {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 6px);
+  transform: translateY(-50%);
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--oc-outputWindow-head-fg) 68%, var(--oc-surface-canvas) 32%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.oc-outputWindowCopyBtn[data-copied="true"] .oc-outputWindowCopyTip {
+  opacity: 1;
+  animation: oc-copyTipFade 1.2s ease;
+}
+
+.oc-outputWindowCopyIcon {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
 .oc-outputWindowBody {
   min-width: 0;
   background: var(--oc-outputWindow-body-bg);
   color: var(--oc-outputWindow-body-fg);
+}
+
+.oc-outputWindow-markdownCode .oc-outputWindowBody {
+  background: var(--oc-outputWindow-body-bg);
+}
+
+.oc-outputWindow-markdownCode,
+.oc-outputWindow-markdownCode .oc-outputWindowBody,
+.oc-outputWindow-markdownCode .oc-outputWindowBodyInner,
+.oc-outputWindow-markdownCode .oc-codeWindowBody,
+.oc-outputWindow-markdownCode pre,
+.oc-outputWindow-markdownCode pre code {
+  background: var(--oc-outputWindow-body-bg);
 }
 
 .oc-outputWindowBodyInner {
@@ -619,7 +730,12 @@ button {
 }
 
 .oc-toolTodoItem.is-in_progress {
-  color: var(--oc-warning);
+  color: var(--oc-md-emph);
+}
+
+.oc-toolTodoList {
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--oc-accent) 10%, var(--oc-surface-block) 90%);
 }
 
 .oc-diagnosticItem {
@@ -725,6 +841,7 @@ button {
 .oc-part-reasoning {
   padding: 8px 12px;
   border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--oc-border-strong) 82%, transparent 18%);
 }
 
 @keyframes oc-spin {
@@ -774,6 +891,101 @@ button {
 
 .oc-codeBlock code {
   display: block;
+}
+
+.oc-codeWindowBody {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  color: var(--oc-outputWindow-body-fg);
+}
+
+.oc-outputWindow-markdownCode pre,
+.oc-outputWindow-markdownCode pre code {
+  border: 0;
+}
+
+.oc-codeWindowText {
+  display: block;
+}
+
+.oc-codeWindowLine {
+  display: grid;
+  grid-template-columns: var(--oc-codeWindow-gutter, 40px) minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: start;
+  padding: 2px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.35;
+  font-size: 11px;
+}
+
+.oc-codeWindowLineNo {
+  color: var(--oc-fg-muted);
+  text-align: right;
+}
+
+.oc-codeWindowLineText {
+  min-width: 0;
+  color: var(--oc-diff-context);
+}
+
+.oc-codeWindowLineText.hljs,
+.oc-codeWindowLineText .hljs {
+  display: block;
+  color: var(--oc-diff-syntax-punctuation);
+}
+
+.oc-codeWindowLineText .hljs-comment,
+.oc-codeWindowLineText .hljs-quote {
+  color: var(--oc-diff-syntax-comment);
+}
+
+.oc-codeWindowLineText .hljs-keyword,
+.oc-codeWindowLineText .hljs-selector-tag,
+.oc-codeWindowLineText .hljs-literal,
+.oc-codeWindowLineText .hljs-section,
+.oc-codeWindowLineText .hljs-link {
+  color: var(--oc-diff-syntax-keyword);
+}
+
+.oc-codeWindowLineText .hljs-string,
+.oc-codeWindowLineText .hljs-symbol,
+.oc-codeWindowLineText .hljs-bullet,
+.oc-codeWindowLineText .hljs-addition {
+  color: var(--oc-diff-syntax-string);
+}
+
+.oc-codeWindowLineText .hljs-title,
+.oc-codeWindowLineText .hljs-name,
+.oc-codeWindowLineText .hljs-type,
+.oc-codeWindowLineText .hljs-attribute {
+  color: var(--oc-diff-syntax-type);
+}
+
+.oc-codeWindowLineText .hljs-number,
+.oc-codeWindowLineText .hljs-built_in,
+.oc-codeWindowLineText .hljs-meta {
+  color: var(--oc-diff-syntax-number);
+}
+
+.oc-codeWindowLineText .hljs-variable,
+.oc-codeWindowLineText .hljs-template-variable,
+.oc-codeWindowLineText .hljs-params {
+  color: var(--oc-diff-syntax-variable);
+}
+
+.oc-codeWindowLineText .hljs-function,
+.oc-codeWindowLineText .hljs-subst,
+.oc-codeWindowLineText .hljs-tag,
+.oc-codeWindowLineText .hljs-regexp {
+  color: var(--oc-diff-syntax-function);
+}
+
+.oc-codeWindowLineText .hljs-operator,
+.oc-codeWindowLineText .hljs-punctuation {
+  color: var(--oc-diff-syntax-operator);
 }
 
 .oc-codeBlock .hljs {
@@ -966,36 +1178,55 @@ button {
 }
 
 .oc-markdown {
+  --oc-md-current-text: var(--oc-md-text);
+  --oc-md-current-heading: var(--oc-md-heading);
+  --oc-md-current-link: var(--oc-md-link);
+  --oc-md-current-link-text: var(--oc-md-link-text);
+  --oc-md-current-code: var(--oc-md-code);
+  --oc-md-current-quote: var(--oc-md-quote);
+  --oc-md-current-emph: var(--oc-md-emph);
+  --oc-md-current-strong: var(--oc-md-strong);
+  --oc-md-current-rule: var(--oc-md-rule);
+  --oc-md-current-list: var(--oc-md-list);
+  --oc-md-current-list-enum: var(--oc-md-list-enum);
+  --oc-md-current-code-block: var(--oc-md-code-block);
+  --oc-md-current-syntax-comment: var(--oc-md-syntax-comment);
+  --oc-md-current-syntax-keyword: var(--oc-md-syntax-keyword);
+  --oc-md-current-syntax-function: var(--oc-md-syntax-function);
+  --oc-md-current-syntax-variable: var(--oc-md-syntax-variable);
+  --oc-md-current-syntax-string: var(--oc-md-syntax-string);
+  --oc-md-current-syntax-number: var(--oc-md-syntax-number);
+  --oc-md-current-syntax-type: var(--oc-md-syntax-type);
+  --oc-md-current-syntax-operator: var(--oc-md-syntax-operator);
+  --oc-md-current-syntax-punctuation: var(--oc-md-syntax-punctuation);
   font-family: var(--oc-ui);
   font-size: 12px;
   line-height: 1.65;
-  color: var(--oc-fg-primary);
+  color: var(--oc-md-current-text);
 }
 
 .oc-markdown.is-subtle {
-  color: color-mix(in srgb, var(--oc-fg-muted) 88%, var(--oc-fg-primary) 12%);
-}
-
-.oc-markdown.is-subtle .hljs,
-.oc-markdown.is-subtle code,
-.oc-markdown.is-subtle a,
-.oc-markdown.is-subtle strong,
-.oc-markdown.is-subtle em,
-.oc-markdown.is-subtle blockquote {
-  opacity: 0.72;
-}
-
-.oc-markdown.is-subtle a {
-  color: color-mix(in srgb, var(--vscode-textLink-foreground) 72%, var(--oc-muted) 28%);
-}
-
-.oc-markdown.is-subtle blockquote {
-  border-left-color: color-mix(in srgb, var(--oc-border-strong) 48%, transparent 52%);
-}
-
-.oc-markdown.is-subtle pre {
-  border-color: color-mix(in srgb, var(--oc-border-strong) 45%, transparent 55%);
-  border-left-color: color-mix(in srgb, var(--oc-border-strong) 52%, transparent 48%);
+  --oc-md-current-text: var(--oc-fg-muted);
+  --oc-md-current-heading: color-mix(in srgb, var(--oc-md-heading) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-link: color-mix(in srgb, var(--oc-md-link) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-link-text: color-mix(in srgb, var(--oc-md-link-text) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-code: color-mix(in srgb, var(--oc-md-code) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-quote: color-mix(in srgb, var(--oc-md-quote) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-emph: color-mix(in srgb, var(--oc-md-emph) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-strong: color-mix(in srgb, var(--oc-md-emph) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-rule: color-mix(in srgb, var(--oc-border-strong) 48%, transparent 52%);
+  --oc-md-current-list: color-mix(in srgb, var(--oc-md-list) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-list-enum: color-mix(in srgb, var(--oc-md-link-text) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-code-block: color-mix(in srgb, var(--oc-md-code-block) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-syntax-comment: color-mix(in srgb, var(--oc-md-syntax-comment) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-syntax-keyword: color-mix(in srgb, var(--oc-md-syntax-keyword) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-syntax-function: color-mix(in srgb, var(--oc-md-syntax-function) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-syntax-variable: color-mix(in srgb, var(--oc-md-syntax-variable) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-syntax-string: color-mix(in srgb, var(--oc-md-syntax-string) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-syntax-number: color-mix(in srgb, var(--oc-md-syntax-number) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-syntax-type: color-mix(in srgb, var(--oc-md-syntax-type) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-syntax-operator: color-mix(in srgb, var(--oc-md-syntax-operator) 60%, var(--oc-surface-canvas) 40%);
+  --oc-md-current-syntax-punctuation: color-mix(in srgb, var(--oc-md-syntax-punctuation) 60%, var(--oc-surface-canvas) 40%);
 }
 
 .oc-markdown > :first-child {
@@ -1027,18 +1258,31 @@ button {
   line-height: 1.45;
   font-weight: 600;
   letter-spacing: 0.02em;
+  color: var(--oc-md-current-heading);
 }
 
 .oc-markdown h1::before,
 .oc-markdown h2::before,
 .oc-markdown h3::before {
   content: "# ";
-  color: var(--oc-fg-muted);
+  color: var(--oc-md-current-list);
 }
 
 .oc-markdown ul,
 .oc-markdown ol {
   padding-left: 20px;
+}
+
+.oc-markdown li {
+  color: var(--oc-md-current-text);
+}
+
+.oc-markdown ul li::marker {
+  color: var(--oc-md-current-list);
+}
+
+.oc-markdown ol li::marker {
+  color: var(--oc-md-current-list-enum);
 }
 
 .oc-markdown li + li {
@@ -1047,23 +1291,38 @@ button {
 
 .oc-markdown blockquote {
   padding: 8px 12px;
-  border-left: 2px solid var(--oc-border-strong);
-  color: var(--oc-fg-muted);
+  border-left: 2px solid color-mix(in srgb, var(--oc-md-current-quote) 28%, transparent 72%);
+  color: var(--oc-md-current-quote);
+  font-style: italic;
 }
 
 .oc-markdown a {
-  color: var(--vscode-textLink-foreground);
-  text-decoration: none;
+  color: var(--oc-md-current-link);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--oc-md-current-link) 60%, transparent 40%);
+}
+
+.oc-markdown a code {
+  color: var(--oc-md-current-link-text);
 }
 
 .oc-markdown a:hover {
-  text-decoration: underline;
+  color: var(--oc-md-current-link-text);
 }
 
 .oc-inlineCode {
   padding: 1px 5px;
-  border: 1px solid var(--oc-border-strong);
-  color: color-mix(in srgb, var(--oc-fg-primary) 90%, var(--vscode-terminal-ansiCyan) 10%);
+  border: 0;
+  background: transparent;
+  color: var(--oc-md-current-code);
+}
+
+.oc-markdown em {
+  color: var(--oc-md-current-emph);
+}
+
+.oc-markdown strong {
+  color: var(--oc-md-current-strong);
 }
 
 .oc-markdown pre {
@@ -1071,6 +1330,7 @@ button {
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--oc-border-strong) 58%, transparent 42%);
   border-left: 1px solid color-mix(in srgb, var(--oc-border-strong) 62%, transparent 38%);
+  color: var(--oc-md-current-code-block);
 }
 
 .oc-markdown pre code {
@@ -1096,17 +1356,17 @@ button {
 
 .oc-markdown hr {
   border: 0;
-  border-top: 1px solid var(--oc-border);
+  border-top: 1px solid var(--oc-md-current-rule);
 }
 
 .oc-markdown .hljs {
   display: block;
-  color: var(--oc-fg-primary);
+  color: var(--oc-md-current-syntax-punctuation);
 }
 
 .oc-markdown .hljs-comment,
 .oc-markdown .hljs-quote {
-  color: color-mix(in srgb, var(--oc-muted) 88%, var(--vscode-terminal-ansiBlack) 12%);
+  color: var(--oc-md-current-syntax-comment);
 }
 
 .oc-markdown .hljs-keyword,
@@ -1114,7 +1374,7 @@ button {
 .oc-markdown .hljs-literal,
 .oc-markdown .hljs-section,
 .oc-markdown .hljs-link {
-  color: var(--vscode-terminal-ansiMagenta);
+  color: var(--oc-md-current-syntax-keyword);
 }
 
 .oc-markdown .hljs-string,
@@ -1125,7 +1385,7 @@ button {
 .oc-markdown .hljs-symbol,
 .oc-markdown .hljs-bullet,
 .oc-markdown .hljs-addition {
-  color: var(--vscode-terminal-ansiGreen);
+  color: var(--oc-md-current-syntax-string);
 }
 
 .oc-markdown .hljs-number,
@@ -1134,14 +1394,23 @@ button {
 .oc-markdown .hljs-template-variable,
 .oc-markdown .hljs-meta,
 .oc-markdown .hljs-params {
-  color: var(--vscode-terminal-ansiYellow);
+  color: var(--oc-md-current-syntax-variable);
 }
 
 .oc-markdown .hljs-function,
 .oc-markdown .hljs-subst,
 .oc-markdown .hljs-tag,
 .oc-markdown .hljs-regexp {
-  color: var(--vscode-terminal-ansiBlue);
+  color: var(--oc-md-current-syntax-function);
+}
+
+.oc-markdown .hljs-type {
+  color: var(--oc-md-current-syntax-type);
+}
+
+.oc-markdown .hljs-operator,
+.oc-markdown .hljs-punctuation {
+  color: var(--oc-md-current-syntax-operator);
 }
 
 .oc-markdown .hljs-emphasis {
@@ -1318,7 +1587,7 @@ button {
   width: 100%;
   resize: vertical;
   border: 1px solid var(--oc-border-strong);
-  background: var(--oc-surface-control);
+  background: color-mix(in srgb, var(--oc-accent) 10%, var(--oc-surface-control) 90%);
   color: var(--oc-fg-primary);
   padding: 10px 12px;
 }
