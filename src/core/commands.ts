@@ -67,6 +67,30 @@ export function commands(
 
       await tabs.openSession(item.runtime.dir, item.session)
     }),
+    vscode.commands.registerCommand("opencode-ui.openSessionById", async (dir?: string, sessionID?: string) => {
+      if (!dir || !sessionID) {
+        return
+      }
+
+      const rt = mgr.get(dir)
+
+      if (!rt || rt.state !== "ready" || !rt.sdk) {
+        await vscode.window.showInformationMessage("Wait for the workspace server to become ready first.")
+        return
+      }
+
+      const res = await rt.sdk.session.get({
+        sessionID,
+        directory: dir,
+      })
+
+      if (!res.data) {
+        await vscode.window.showInformationMessage("Session was not found.")
+        return
+      }
+
+      await tabs.openSession(dir, res.data)
+    }),
     vscode.commands.registerCommand("opencode-ui.deleteSession", async (item?: SessionItem) => {
       if (!item) {
         await vscode.window.showInformationMessage("Pick a session item first.")

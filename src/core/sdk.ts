@@ -64,6 +64,15 @@ export type Todo = {
   priority: string
 }
 
+export type FileDiff = {
+  file: string
+  before: string
+  after: string
+  additions: number
+  deletions: number
+  status?: "added" | "deleted" | "modified"
+}
+
 export type MessageInfo = {
   id: string
   sessionID: string
@@ -73,6 +82,16 @@ export type MessageInfo = {
     completed?: number
   }
   agent?: string
+  cost?: number
+  tokens?: {
+    input: number
+    output: number
+    reasoning: number
+    cache: {
+      read: number
+      write: number
+    }
+  }
   model?: {
     providerID: string
     modelID: string
@@ -112,11 +131,13 @@ export type ToolPart = {
   id: string
   sessionID: string
   messageID: string
+  callID?: string
   type: "tool"
   tool: string
   state: {
     status: "pending" | "running" | "completed" | "error"
     title?: string
+    input?: Record<string, unknown>
     output?: string
     error?: string
     metadata?: Record<string, unknown>
@@ -140,6 +161,12 @@ export type SessionMessage = {
 
 export type SessionEvent =
   | {
+      type: "server.instance.disposed"
+      properties?: {
+        workspaceID?: string
+      }
+    }
+  | {
       type: "session.status"
       properties: {
         sessionID: string
@@ -156,6 +183,13 @@ export type SessionEvent =
       type: "session.deleted"
       properties: {
         info: SessionInfo
+      }
+    }
+  | {
+      type: "session.diff"
+      properties: {
+        sessionID: string
+        diff: FileDiff[]
       }
     }
   | {
@@ -258,6 +292,12 @@ export type Client = {
       directory?: string
       workspace?: string
     }): Promise<{ data?: boolean }>
+    diff(input: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      messageID?: string
+    }): Promise<{ data?: FileDiff[] }>
     get(input: {
       sessionID: string
       directory?: string
@@ -330,12 +370,7 @@ export type Client = {
       signal?: AbortSignal
       onSseError?: (error: unknown) => void
     }): Promise<{
-      stream: AsyncIterable<{
-        data?: {
-          directory?: string
-          payload: SessionEvent
-        }
-      }>
+      stream: AsyncIterable<SessionEvent>
     }>
   }
 }

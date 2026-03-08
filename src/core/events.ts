@@ -85,14 +85,13 @@ export class EventHub implements vscode.Disposable {
             break
           }
 
-          const data = item?.data
-          if (!data?.payload) {
+          if (!item) {
             continue
           }
 
           this.change.fire({
             dir,
-            event: data.payload,
+            event: item,
           })
         }
       } catch (err) {

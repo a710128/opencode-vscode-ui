@@ -4,6 +4,7 @@ import { postToWebview } from "../bridge/host"
 import { SESSION_PANEL_VIEW_TYPE, type SessionBootstrap, type SessionPanelRef, type SessionSnapshot, type WebviewMessage } from "../bridge/types"
 import { EventHub } from "../core/events"
 import type {
+  FileDiff,
   MessagePart,
   PermissionReply,
   PermissionRequest,
@@ -28,16 +29,18 @@ class SessionPanelController implements vscode.Disposable {
   private readonly bag: vscode.Disposable[] = []
 
   constructor(
+    private extensionUri: vscode.Uri,
     readonly ref: SessionPanelRef,
     readonly key: string,
     readonly panel: vscode.WebviewPanel,
     private mgr: WorkspaceManager,
     private events: EventHub,
     private out: vscode.OutputChannel,
+    private onActive: (ref: SessionPanelRef | undefined) => void,
     private onDispose: (key: string) => void,
   ) {
     panel.webview.options = { enableScripts: true }
-    panel.webview.html = sessionPanelHtml(panel.webview, ref)
+    panel.webview.html = sessionPanelHtml(panel.webview, this.extensionUri, ref)
     panel.title = panelTitle(ref.sessionId)
 
     this.panel.webview.onDidReceiveMessage(
@@ -70,6 +73,11 @@ class SessionPanelController implements vscode.Disposable {
 
         if (message?.type === "questionReject") {
           void this.rejectQuestion(message.requestID)
+          return
+        }
+
+        if (message?.type === "navigateSession") {
+          void vscode.commands.executeCommand("opencode-ui.openSessionById", this.ref.dir, message.sessionID)
         }
       },
       undefined,
@@ -78,6 +86,10 @@ class SessionPanelController implements vscode.Disposable {
 
     this.panel.onDidDispose(() => {
       this.dispose()
+    }, undefined, this.bag)
+
+    this.panel.onDidChangeViewState(({ webviewPanel }) => {
+      this.onActive(webviewPanel.active ? this.ref : undefined)
     }, undefined, this.bag)
 
     this.bag.push(
@@ -151,37 +163,48 @@ class SessionPanelController implements vscode.Disposable {
     const workspaceName = rt?.name || path.basename(this.ref.dir)
 
     if (!rt || rt.state === "starting" || !rt.sdk) {
-      return {
-        status: "loading",
-        sessionRef: this.ref,
-        workspaceName,
-        message: "Workspace runtime is starting.",
-        messages: [],
-        submitting: this.submitting,
-        todos: [],
-        permissions: [],
-        questions: [],
+        return {
+          status: "loading",
+          sessionRef: this.ref,
+          workspaceName,
+          message: "Workspace runtime is starting.",
+          messages: [],
+          submitting: this.submitting,
+          todos: [],
+          diff: [],
+          permissions: [],
+          questions: [],
+          relatedSessionIds: [this.ref.sessionId],
+          agentMode: "build",
+          navigation: {},
+        }
       }
-    }
 
     if (rt.state !== "ready") {
-      return {
-        status: "error",
-        sessionRef: this.ref,
-        workspaceName,
-        message: rt.err || "Workspace runtime is not ready.",
-        messages: [],
-        submitting: this.submitting,
-        todos: [],
-        permissions: [],
-        questions: [],
+        return {
+          status: "error",
+          sessionRef: this.ref,
+          workspaceName,
+          message: rt.err || "Workspace runtime is not ready.",
+          messages: [],
+          submitting: this.submitting,
+          todos: [],
+          diff: [],
+          permissions: [],
+          questions: [],
+          relatedSessionIds: [this.ref.sessionId],
+          agentMode: "build",
+          navigation: {},
+        }
       }
-    }
 
     try {
-      const [sessionRes, messageRes, statusRes, todoRes, permissionRes, questionRes] = await Promise.all([
+      const [sessionRes, sessionsRes, messageRes, statusRes, todoRes, diffRes, permissionRes, questionRes] = await Promise.all([
         rt.sdk.session.get({
           sessionID: this.ref.sessionId,
+          directory: rt.dir,
+        }),
+        rt.sdk.session.list({
           directory: rt.dir,
         }),
         rt.sdk.session.messages({
@@ -193,6 +216,10 @@ class SessionPanelController implements vscode.Disposable {
           directory: rt.dir,
         }),
         rt.sdk.session.todo({
+          sessionID: this.ref.sessionId,
+          directory: rt.dir,
+        }),
+        rt.sdk.session.diff({
           sessionID: this.ref.sessionId,
           directory: rt.dir,
         }),
@@ -215,23 +242,34 @@ class SessionPanelController implements vscode.Disposable {
           messages: [],
           submitting: this.submitting,
           todos: [],
+          diff: [],
           permissions: [],
           questions: [],
+          relatedSessionIds: [this.ref.sessionId],
+          agentMode: "build",
+          navigation: {},
         }
       }
 
       rt.sessions.set(session.id, session)
+      const relatedSessionIds = collectRelatedSessionIds(session, sessionsRes.data ?? [])
+      const messages = sortMessages(messageRes.data ?? [])
+      const navigation = nav(session, sessionsRes.data ?? [])
       return patch({
         status: "ready",
         sessionRef: this.ref,
         workspaceName,
         session,
         sessionStatus: statusRes.data?.[this.ref.sessionId] ?? idle(),
-        messages: sortMessages(messageRes.data ?? []),
+        messages,
         submitting: this.submitting,
         todos: todoRes.data ?? [],
-        permissions: filterPermission(permissionRes.data ?? [], this.ref.sessionId),
-        questions: filterQuestion(questionRes.data ?? [], this.ref.sessionId),
+        diff: sortDiff(diffRes.data ?? []),
+        permissions: filterPermission(permissionRes.data ?? [], relatedSessionIds),
+        questions: filterQuestion(questionRes.data ?? [], relatedSessionIds),
+        relatedSessionIds,
+        agentMode: agentMode(messages),
+        navigation,
       })
     } catch (err) {
       this.log(`snapshot failed: ${text(err)}`)
@@ -243,8 +281,12 @@ class SessionPanelController implements vscode.Disposable {
         messages: [],
         submitting: this.submitting,
         todos: [],
+        diff: [],
         permissions: [],
         questions: [],
+        relatedSessionIds: [this.ref.sessionId],
+        agentMode: "build",
+        navigation: {},
       }
     }
   }
@@ -300,7 +342,7 @@ class SessionPanelController implements vscode.Disposable {
       return
     }
 
-    if (needsRefresh(event, this.ref.sessionId)) {
+    if (this.current && needsRefresh(event, this.current)) {
       await this.push(true)
       return
     }
@@ -398,8 +440,13 @@ class SessionPanelController implements vscode.Disposable {
 
 export class SessionPanelManager implements vscode.Disposable {
   private readonly panels = new Map<string, SessionPanelController>()
+  private readonly active = new vscode.EventEmitter<SessionPanelRef | undefined>()
+  private currentRef: SessionPanelRef | undefined
+
+  readonly onDidChangeActiveSession = this.active.event
 
   constructor(
+    private extensionUri: vscode.Uri,
     private mgr: WorkspaceManager,
     private events: EventHub,
     private out: vscode.OutputChannel,
@@ -417,6 +464,7 @@ export class SessionPanelManager implements vscode.Disposable {
     const panel = vscode.window.createWebviewPanel(SESSION_PANEL_VIEW_TYPE, panelTitle(ref.sessionId), vscode.ViewColumn.Active, {
       enableScripts: true,
       retainContextWhenHidden: true,
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist")],
     })
 
     const controller = this.attach(ref, panel)
@@ -428,7 +476,7 @@ export class SessionPanelManager implements vscode.Disposable {
     const ref = reviveState(state)
 
     if (!ref) {
-      panel.webview.html = sessionPanelHtml(panel.webview)
+      panel.webview.html = sessionPanelHtml(panel.webview, this.extensionUri)
       panel.title = panelTitle("unknown")
       this.out.appendLine("[panel] skipped restore due to invalid state")
       return
@@ -436,6 +484,10 @@ export class SessionPanelManager implements vscode.Disposable {
 
     const controller = this.attach(ref, panel)
     await controller.push()
+  }
+
+  activeSession() {
+    return this.currentRef
   }
 
   close(ref: SessionPanelRef) {
@@ -455,15 +507,43 @@ export class SessionPanelManager implements vscode.Disposable {
       controller.dispose()
     }
     this.panels.clear()
+    this.active.dispose()
   }
 
   private attach(ref: SessionPanelRef, panel: vscode.WebviewPanel) {
     const key = panelKey(ref)
-    const controller = new SessionPanelController(ref, key, panel, this.mgr, this.events, this.out, (disposedKey) => {
-      this.panels.delete(disposedKey)
-    })
+    const controller = new SessionPanelController(
+      this.extensionUri,
+      ref,
+      key,
+      panel,
+      this.mgr,
+      this.events,
+      this.out,
+      (next) => {
+        this.setActive(next)
+      },
+      (disposedKey) => {
+        this.panels.delete(disposedKey)
+        if (panelKey(this.currentRef) === disposedKey) {
+          this.setActive(undefined)
+        }
+      },
+    )
     this.panels.set(key, controller)
+    if (panel.active) {
+      this.setActive(ref)
+    }
     return controller
+  }
+
+  private setActive(ref: SessionPanelRef | undefined) {
+    if (panelKey(this.currentRef) === panelKey(ref)) {
+      return
+    }
+
+    this.currentRef = ref
+    this.active.fire(ref)
   }
 }
 
@@ -484,7 +564,10 @@ function reviveState(state: unknown): SessionPanelState | undefined {
   }
 }
 
-function panelKey(ref: SessionPanelRef) {
+function panelKey(ref?: SessionPanelRef) {
+  if (!ref) {
+    return ""
+  }
   return `${ref.dir}::${ref.sessionId}`
 }
 
@@ -514,6 +597,17 @@ function patch(payload: Omit<SessionSnapshot, "message">): SessionSnapshot {
 }
 
 function reduce(payload: SessionSnapshot, event: SessionEvent) {
+  if (event.type === "session.diff") {
+    const props = event.properties as { sessionID: string; diff: FileDiff[] }
+    if (props.sessionID !== payload.sessionRef.sessionId) {
+      return
+    }
+    return {
+      ...payload,
+      diff: sortDiff(props.diff),
+    }
+  }
+
   if (event.type === "session.status") {
     const props = event.properties as { sessionID: string; status: SessionStatus }
     if (props.sessionID !== payload.sessionRef.sessionId) {
@@ -574,9 +668,11 @@ function reduce(payload: SessionSnapshot, event: SessionEvent) {
     if (props.part.sessionID !== payload.sessionRef.sessionId) {
       return
     }
+    const messages = upsertPart(payload.messages, props.part)
     return {
       ...payload,
-      messages: upsertPart(payload.messages, props.part),
+      messages,
+      agentMode: nextAgentMode(payload.agentMode, props.part, messages),
     }
   }
 
@@ -607,18 +703,18 @@ function reduce(payload: SessionSnapshot, event: SessionEvent) {
 
   if (event.type === "permission.asked") {
     const props = event.properties as PermissionRequest
-    if (props.sessionID !== payload.sessionRef.sessionId) {
+    if (!payload.relatedSessionIds.includes(props.sessionID)) {
       return
     }
     return {
       ...payload,
-      permissions: upsertPermission(payload.permissions, props),
+      permissions: sortRequests(upsertPermission(payload.permissions, props), payload.relatedSessionIds),
     }
   }
 
   if (event.type === "permission.replied") {
     const props = event.properties as { sessionID: string; requestID: string }
-    if (props.sessionID !== payload.sessionRef.sessionId) {
+    if (!payload.relatedSessionIds.includes(props.sessionID)) {
       return
     }
     return {
@@ -629,18 +725,18 @@ function reduce(payload: SessionSnapshot, event: SessionEvent) {
 
   if (event.type === "question.asked") {
     const props = event.properties as QuestionRequest
-    if (props.sessionID !== payload.sessionRef.sessionId) {
+    if (!payload.relatedSessionIds.includes(props.sessionID)) {
       return
     }
     return {
       ...payload,
-      questions: upsertQuestion(payload.questions, props),
+      questions: sortRequests(upsertQuestion(payload.questions, props), payload.relatedSessionIds),
     }
   }
 
   if (event.type === "question.replied" || event.type === "question.rejected") {
     const props = event.properties as { sessionID: string; requestID: string }
-    if (props.sessionID !== payload.sessionRef.sessionId) {
+    if (!payload.relatedSessionIds.includes(props.sessionID)) {
       return
     }
     return {
@@ -732,6 +828,10 @@ function sortMessages(messages: SessionMessage[]) {
   return [...messages].sort((a, b) => cmp(a.info.id, b.info.id))
 }
 
+function sortDiff(diff: FileDiff[]) {
+  return [...diff].sort((a, b) => cmp(a.file, b.file))
+}
+
 function sortParts(parts: MessagePart[]) {
   return [...parts].sort((a, b) => cmp(a.id, b.id))
 }
@@ -756,24 +856,128 @@ function sortPending<T extends { id: string }>(list: T[]) {
   return [...list].sort((a, b) => cmp(a.id, b.id))
 }
 
-function filterPermission(list: PermissionRequest[], sessionID: string) {
-  return sortPending(list.filter((item) => item.sessionID === sessionID))
+function filterPermission(list: PermissionRequest[], sessionIDs: string[]) {
+  return sortRequests(list, sessionIDs)
 }
 
-function filterQuestion(list: QuestionRequest[], sessionID: string) {
-  return sortPending(list.filter((item) => item.sessionID === sessionID))
+function filterQuestion(list: QuestionRequest[], sessionIDs: string[]) {
+  return sortRequests(list, sessionIDs)
 }
 
-function needsRefresh(event: SessionEvent, sessionID: string) {
-  if (event.type === "session.deleted") {
-    const props = event.properties as { info: { id: string } }
-    if (props.info.id !== sessionID) {
-      return false
-    }
+function needsRefresh(event: SessionEvent, payload: SessionSnapshot) {
+  if (event.type === "server.instance.disposed") {
     return true
   }
 
+  if (event.type === "session.deleted") {
+    const props = event.properties as { info: { id: string } }
+    return payload.relatedSessionIds.includes(props.info.id)
+  }
+
+  if (event.type === "session.created" || event.type === "session.updated") {
+    const props = event.properties as { info: { id: string; parentID?: string } }
+    if (props.info.id === payload.sessionRef.sessionId) {
+      return false
+    }
+    if (payload.session?.parentID) {
+      return false
+    }
+    return props.info.parentID === payload.sessionRef.sessionId || payload.relatedSessionIds.includes(props.info.id)
+  }
+
   return false
+}
+
+function collectRelatedSessionIds(session: NonNullable<SessionSnapshot["session"]>, sessions: NonNullable<SessionSnapshot["session"]>[]) {
+  if (session.parentID) {
+    return [session.id]
+  }
+
+  return sessions
+    .filter((item) => item.id === session.id || item.parentID === session.id)
+    .map((item) => item.id)
+    .sort(cmp)
+}
+
+function nav(session: NonNullable<SessionSnapshot["session"]>, sessions: NonNullable<SessionSnapshot["session"]>[]) {
+  if (!session.parentID) {
+    return {}
+  }
+
+  const parent = sessions.find((item) => item.id === session.parentID)
+  const siblings = sessions
+    .filter((item) => item.parentID === session.parentID)
+    .sort((a, b) => cmp(a.id, b.id))
+  const index = siblings.findIndex((item) => item.id === session.id)
+  const prev = index >= 0 && siblings.length > 1 ? siblings[(index - 1 + siblings.length) % siblings.length] : undefined
+  const next = index >= 0 && siblings.length > 1 ? siblings[(index + 1) % siblings.length] : undefined
+
+  return {
+    parent: parent ? ref(parent) : undefined,
+    prev: prev && prev.id !== session.id ? ref(prev) : undefined,
+    next: next && next.id !== session.id ? ref(next) : undefined,
+  }
+}
+
+function ref(session: NonNullable<SessionSnapshot["session"]>) {
+  return {
+    id: session.id,
+    title: session.title || session.id.slice(0, 8),
+  }
+}
+
+function sortRequests<T extends { id: string; sessionID: string }>(list: T[], sessionIDs: string[]) {
+  const order = new Map(sessionIDs.map((item, index) => [item, index]))
+  return [...list]
+    .filter((item) => order.has(item.sessionID))
+    .sort((a, b) => {
+      const sessionCmp = (order.get(a.sessionID) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.sessionID) ?? Number.MAX_SAFE_INTEGER)
+      if (sessionCmp !== 0) {
+        return sessionCmp
+      }
+      return cmp(a.id, b.id)
+    })
+}
+
+function agentMode(messages: SessionMessage[]) {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const mode = messageAgentMode(messages[i])
+    if (mode) {
+      return mode
+    }
+  }
+
+  return "build" as const
+}
+
+function messageAgentMode(message: SessionMessage) {
+  for (let i = message.parts.length - 1; i >= 0; i -= 1) {
+    const mode = partAgentMode(message.parts[i])
+    if (mode) {
+      return mode
+    }
+  }
+}
+
+function nextAgentMode(current: SessionSnapshot["agentMode"], part: MessagePart, messages: SessionMessage[]) {
+  const next = partAgentMode(part)
+  if (next) {
+    return next
+  }
+  return current || agentMode(messages)
+}
+
+function partAgentMode(part: MessagePart) {
+  if (part.type !== "tool" || part.state.status !== "completed") {
+    return undefined
+  }
+  if (part.tool === "plan_enter") {
+    return "plan" as const
+  }
+  if (part.tool === "plan_exit") {
+    return "build" as const
+  }
+  return undefined
 }
 
 function cmp(a: string, b: string) {

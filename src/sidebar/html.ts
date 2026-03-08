@@ -1,11 +1,10 @@
 import * as vscode from "vscode"
-import type { SessionPanelRef } from "../bridge/types"
+import type { SidebarViewMode } from "./view-types"
 
-export function sessionPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri, ref?: SessionPanelRef) {
+export function sidebarViewHtml(webview: vscode.Webview, extensionUri: vscode.Uri, mode: SidebarViewMode) {
   const nonce = nonceText()
-  const initialState = JSON.stringify(ref ?? null)
-  const scriptUri = assetUri(webview, extensionUri, "panel-webview.js")
-  const styleUri = assetUri(webview, extensionUri, "panel-webview.css")
+  const scriptUri = assetUri(webview, extensionUri, "sidebar-webview.js")
+  const styleUri = assetUri(webview, extensionUri, "sidebar-webview.css")
 
   return /* html */ `<!DOCTYPE html>
 <html lang="en">
@@ -13,14 +12,12 @@ export function sessionPanelHtml(webview: vscode.Webview, extensionUri: vscode.U
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}' ${webview.cspSource}; font-src ${webview.cspSource};" />
-    <title>OpenCode Session</title>
+    <title>${mode === "todo" ? "Todo" : "Modified Files"}</title>
     <link rel="stylesheet" href="${styleUri}" />
   </head>
   <body>
     <div id="root"></div>
-    <script nonce="${nonce}">
-      window.__OPENCODE_INITIAL_STATE__ = ${initialState}
-    </script>
+    <script nonce="${nonce}">window.__OPENCODE_SIDEBAR_MODE__ = ${JSON.stringify(mode)}</script>
     <script nonce="${nonce}" src="${scriptUri}"></script>
   </body>
 </html>`

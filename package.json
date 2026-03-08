@@ -37,10 +37,17 @@
     "test": "echo 'No tests yet'"
   },
   "dependencies": {
-    "@opencode-ai/sdk": "1.2.21"
+    "@opencode-ai/sdk": "1.2.21",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@types/node": "20.x",
+    "@types/markdown-it": "^14.1.2",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
     "@types/vscode": "^1.94.0",
     "@typescript-eslint/eslint-plugin": "^8.31.1",
     "@typescript-eslint/parser": "^8.31.1",
@@ -62,7 +69,17 @@
       "opencode-ui": [
         {
           "id": "opencode-ui.sessions",
-          "name": "OpenCode"
+          "name": "Sessions"
+        },
+        {
+          "id": "opencode-ui.todo",
+          "name": "Todo",
+          "type": "webview"
+        },
+        {
+          "id": "opencode-ui.diff",
+          "name": "Modified Files",
+          "type": "webview"
         }
       ]
     },

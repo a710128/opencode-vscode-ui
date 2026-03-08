@@ -1,4 +1,4 @@
-import type { PermissionRequest, QuestionRequest, SessionInfo, SessionMessage, SessionStatus, Todo } from "../core/sdk"
+import type { FileDiff, PermissionRequest, QuestionRequest, SessionInfo, SessionMessage, SessionStatus, Todo } from "../core/sdk"
 
 export const SESSION_PANEL_VIEW_TYPE = "opencode-ui.session"
 
@@ -22,8 +22,16 @@ export type SessionSnapshot = SessionBootstrap & {
   messages: SessionMessage[]
   submitting: boolean
   todos: Todo[]
+  diff: FileDiff[]
   permissions: PermissionRequest[]
   questions: QuestionRequest[]
+  relatedSessionIds: string[]
+  agentMode: "build" | "plan"
+  navigation: {
+    parent?: { id: string; title: string }
+    prev?: { id: string; title: string }
+    next?: { id: string; title: string }
+  }
 }
 
 export type HostMessage =
@@ -65,4 +73,8 @@ export type WebviewMessage =
   | {
       type: "questionReject"
       requestID: string
+    }
+  | {
+      type: "navigateSession"
+      sessionID: string
     }

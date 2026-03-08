@@ -14,8 +14,9 @@ export class WorkspaceItem extends vscode.TreeItem {
 }
 
 export class StatusItem extends vscode.TreeItem {
-  constructor(label: string) {
+  constructor(label: string, description?: string) {
     super(label, vscode.TreeItemCollapsibleState.None)
+    this.description = description
     this.contextValue = "status"
   }
 }

@@ -36,7 +36,10 @@ export class SessionStore implements vscode.Disposable {
     this.mgr.invalidate()
 
     try {
-      const res = await rt.sdk.session.list({ directory: rt.dir })
+      const res = await rt.sdk.session.list({
+        directory: rt.dir,
+        roots: true,
+      })
       const list = res.data ?? []
       rt.sessions = new Map(list.map((item: SessionInfo) => [item.id, item]))
       rt.sessionsState = "ready"

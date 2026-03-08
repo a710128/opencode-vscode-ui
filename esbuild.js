@@ -27,27 +27,67 @@ const plugin = {
 }
 
 async function main() {
-  const ctx = await esbuild.context({
-    entryPoints: ["src/extension.ts"],
-    bundle: true,
-    format: "cjs",
-    minify: production,
-    sourcemap: !production,
-    sourcesContent: false,
-    platform: "node",
-    outfile: "dist/extension.js",
-    external: ["vscode"],
-    logLevel: "silent",
-    plugins: [plugin],
-  })
+  const ctx = await Promise.all([
+    esbuild.context({
+      entryPoints: ["src/extension.ts"],
+      bundle: true,
+      format: "cjs",
+      minify: production,
+      sourcemap: !production,
+      sourcesContent: false,
+      platform: "node",
+      outfile: "dist/extension.js",
+      external: ["vscode"],
+      logLevel: "silent",
+      plugins: [plugin],
+    }),
+    esbuild.context({
+      entryPoints: ["src/panel/webview/index.tsx"],
+      bundle: true,
+      format: "iife",
+      minify: production,
+      sourcemap: !production,
+      sourcesContent: false,
+      platform: "browser",
+      target: ["es2022"],
+      jsx: "automatic",
+      entryNames: "panel-webview",
+      assetNames: "panel-webview-[name]",
+      outdir: "dist",
+      loader: {
+        ".css": "css",
+      },
+      logLevel: "silent",
+      plugins: [plugin],
+    }),
+    esbuild.context({
+      entryPoints: ["src/sidebar/webview/index.tsx"],
+      bundle: true,
+      format: "iife",
+      minify: production,
+      sourcemap: !production,
+      sourcesContent: false,
+      platform: "browser",
+      target: ["es2022"],
+      jsx: "automatic",
+      entryNames: "sidebar-webview",
+      assetNames: "sidebar-webview-[name]",
+      outdir: "dist",
+      loader: {
+        ".css": "css",
+      },
+      logLevel: "silent",
+      plugins: [plugin],
+    }),
+  ])
 
   if (watch) {
-    await ctx.watch()
+    await Promise.all(ctx.map((item) => item.watch()))
     return
   }
 
-  await ctx.rebuild()
-  await ctx.dispose()
+  await Promise.all(ctx.map((item) => item.rebuild()))
+  await Promise.all(ctx.map((item) => item.dispose()))
 }
 
 main().catch((err) => {

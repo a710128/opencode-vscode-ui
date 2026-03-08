@@ -1,0 +1,523 @@
+:root {
+  color-scheme: dark;
+  --oc-bg: var(--vscode-editor-background);
+  --oc-panel: color-mix(in srgb, var(--vscode-editor-background) 90%, var(--vscode-editorWidget-background) 10%);
+  --oc-panel-strong: color-mix(in srgb, var(--vscode-editor-background) 84%, var(--vscode-editorWidget-background) 16%);
+  --oc-panel-soft: color-mix(in srgb, var(--vscode-editor-background) 94%, var(--vscode-editorWidget-background) 6%);
+  --oc-border: color-mix(in srgb, var(--vscode-panel-border) 80%, transparent 20%);
+  --oc-border-strong: color-mix(in srgb, var(--vscode-editor-foreground) 22%, transparent 78%);
+  --oc-text: var(--vscode-editor-foreground);
+  --oc-muted: var(--vscode-descriptionForeground);
+  --oc-accent: var(--vscode-button-background);
+  --oc-accent-text: var(--vscode-button-foreground);
+  --oc-warning: var(--vscode-editorWarning-foreground);
+  --oc-error: var(--vscode-errorForeground);
+  --oc-success: var(--vscode-testing-iconPassed, #4caf50);
+  --oc-mono: var(--vscode-editor-font-family, monospace);
+  --oc-ui: var(--vscode-font-family);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--oc-bg);
+  color: var(--oc-text);
+}
+
+body,
+button,
+textarea {
+  font-family: var(--oc-mono);
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+button {
+  appearance: none;
+}
+
+.oc-shell {
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  background:
+    linear-gradient(to bottom, color-mix(in srgb, var(--oc-panel-soft) 80%, transparent 20%), transparent 80px),
+    var(--oc-bg);
+}
+
+.oc-footer {
+  padding: 16px 22px;
+}
+
+.oc-sessionBlock,
+.oc-dock,
+.oc-composer,
+.oc-questionCard,
+.oc-emptyState,
+.oc-part {
+  border: 1px solid var(--oc-border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--oc-panel) 90%, transparent 10%), var(--oc-panel-soft));
+}
+
+.oc-kicker,
+.oc-partMeta,
+.oc-entryTime,
+.oc-help,
+.oc-dockText,
+.oc-emptyText,
+.oc-errorText,
+.oc-partEmpty {
+  color: var(--oc-muted);
+}
+
+.oc-kicker,
+.oc-partMeta {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+}
+
+.oc-emptyTitle {
+  margin: 6px 0 0;
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.oc-emptyText,
+.oc-dockText,
+.oc-errorText {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  line-height: 1.6;
+  font-size: 12px;
+}
+
+.oc-transcript {
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 22px;
+}
+
+.oc-transcriptInner {
+  width: min(100%, 1100px);
+  margin: 0 auto;
+}
+
+.oc-log,
+.oc-footerInner,
+.oc-questionList,
+.oc-todoList,
+.oc-parts {
+  display: grid;
+  gap: 12px;
+}
+
+.oc-entry {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.oc-rail {
+  width: 2px;
+  min-height: 100%;
+  background: color-mix(in srgb, var(--oc-border-strong) 72%, transparent 28%);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--oc-accent) 28%, transparent 72%);
+  justify-self: center;
+}
+
+.oc-entry-user .oc-rail {
+  background: color-mix(in srgb, var(--oc-accent) 70%, transparent 30%);
+}
+
+.oc-entryBody {
+  display: grid;
+  gap: 10px;
+}
+
+.oc-entryHeader,
+.oc-partHeader,
+.oc-dockHeader,
+.oc-composerHeader,
+.oc-composerMeta,
+.oc-composerActions,
+.oc-actionRow,
+.oc-pillRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.oc-entryRole,
+.oc-dockTitle,
+.oc-inlineValue {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.oc-composerMeta {
+  justify-content: flex-end;
+}
+
+.oc-composerContextWrap {
+  display: grid;
+  gap: 6px;
+}
+
+.oc-contextRow {
+  color: var(--oc-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.oc-entryTime {
+  font-size: 11px;
+}
+
+.oc-part,
+.oc-dock,
+.oc-composer,
+.oc-questionCard,
+.oc-emptyState {
+  padding: 12px 14px;
+}
+
+.oc-partText,
+.oc-partTerminal,
+.oc-composerInput,
+.oc-answerInput {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.65;
+  font-size: 12px;
+}
+
+.oc-partText,
+.oc-partTerminal {
+  overflow-x: auto;
+}
+
+.oc-partTerminal {
+  padding: 10px 12px;
+  background: color-mix(in srgb, black 45%, var(--oc-bg) 55%);
+  border-left: 2px solid color-mix(in srgb, var(--oc-accent) 72%, transparent 28%);
+}
+
+.oc-markdown {
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--oc-text);
+}
+
+.oc-markdown > :first-child {
+  margin-top: 0;
+}
+
+.oc-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.oc-markdown p,
+.oc-markdown ul,
+.oc-markdown ol,
+.oc-markdown blockquote,
+.oc-markdown table,
+.oc-markdown pre,
+.oc-markdown hr {
+  margin: 0 0 10px;
+}
+
+.oc-markdown h1,
+.oc-markdown h2,
+.oc-markdown h3,
+.oc-markdown h4,
+.oc-markdown h5,
+.oc-markdown h6 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.oc-markdown h1::before,
+.oc-markdown h2::before,
+.oc-markdown h3::before {
+  content: "# ";
+  color: var(--oc-muted);
+}
+
+.oc-markdown ul,
+.oc-markdown ol {
+  padding-left: 20px;
+}
+
+.oc-markdown li + li {
+  margin-top: 4px;
+}
+
+.oc-markdown blockquote {
+  padding: 8px 12px;
+  border-left: 2px solid var(--oc-border-strong);
+  background: color-mix(in srgb, var(--oc-panel-strong) 72%, transparent 28%);
+  color: var(--oc-muted);
+}
+
+.oc-markdown a {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+}
+
+.oc-markdown a:hover {
+  text-decoration: underline;
+}
+
+.oc-inlineCode {
+  padding: 1px 5px;
+  border: 1px solid var(--oc-border-strong);
+  background: color-mix(in srgb, black 24%, var(--oc-bg) 76%);
+  color: color-mix(in srgb, var(--oc-text) 90%, var(--vscode-terminal-ansiCyan) 10%);
+}
+
+.oc-markdown pre {
+  overflow-x: auto;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--oc-border-strong) 80%, transparent 20%);
+  background: color-mix(in srgb, black 50%, var(--oc-bg) 50%);
+  border-left: 2px solid color-mix(in srgb, var(--oc-accent) 72%, transparent 28%);
+}
+
+.oc-markdown pre code {
+  background: transparent;
+  padding: 0;
+  border: 0;
+}
+
+.oc-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.oc-markdown th,
+.oc-markdown td {
+  padding: 6px 8px;
+  border: 1px solid var(--oc-border);
+  text-align: left;
+}
+
+.oc-markdown th {
+  color: var(--oc-muted);
+  background: color-mix(in srgb, var(--oc-panel-strong) 80%, transparent 20%);
+}
+
+.oc-markdown hr {
+  border: 0;
+  border-top: 1px solid var(--oc-border);
+}
+
+.oc-markdown .hljs {
+  display: block;
+  background: transparent;
+  color: var(--oc-text);
+}
+
+.oc-markdown .hljs-comment,
+.oc-markdown .hljs-quote {
+  color: color-mix(in srgb, var(--oc-muted) 88%, var(--vscode-terminal-ansiBlack) 12%);
+}
+
+.oc-markdown .hljs-keyword,
+.oc-markdown .hljs-selector-tag,
+.oc-markdown .hljs-literal,
+.oc-markdown .hljs-section,
+.oc-markdown .hljs-link {
+  color: var(--vscode-terminal-ansiMagenta);
+}
+
+.oc-markdown .hljs-string,
+.oc-markdown .hljs-title,
+.oc-markdown .hljs-name,
+.oc-markdown .hljs-type,
+.oc-markdown .hljs-attribute,
+.oc-markdown .hljs-symbol,
+.oc-markdown .hljs-bullet,
+.oc-markdown .hljs-addition {
+  color: var(--vscode-terminal-ansiGreen);
+}
+
+.oc-markdown .hljs-number,
+.oc-markdown .hljs-built_in,
+.oc-markdown .hljs-variable,
+.oc-markdown .hljs-template-variable,
+.oc-markdown .hljs-meta,
+.oc-markdown .hljs-params {
+  color: var(--vscode-terminal-ansiYellow);
+}
+
+.oc-markdown .hljs-function,
+.oc-markdown .hljs-subst,
+.oc-markdown .hljs-tag,
+.oc-markdown .hljs-regexp {
+  color: var(--vscode-terminal-ansiBlue);
+}
+
+.oc-markdown .hljs-emphasis {
+  font-style: italic;
+}
+
+.oc-markdown .hljs-strong {
+  font-weight: 700;
+}
+
+.oc-list {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.6;
+  font-size: 12px;
+}
+
+.oc-footer {
+  border-top: 1px solid var(--oc-border);
+  background: color-mix(in srgb, var(--oc-bg) 82%, black 18%);
+}
+
+.oc-dock-warning {
+  border-color: color-mix(in srgb, var(--oc-warning) 42%, var(--oc-border) 58%);
+}
+
+.oc-dock-error {
+  border-color: color-mix(in srgb, var(--oc-error) 42%, var(--oc-border) 58%);
+}
+
+.oc-detailList,
+.oc-diffList {
+  display: grid;
+  gap: 8px;
+}
+
+.oc-diffItem {
+  display: grid;
+  gap: 8px;
+}
+
+.oc-modeBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1px solid var(--oc-border-strong);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.oc-mode-plan {
+  color: var(--oc-warning);
+}
+
+.oc-mode-build {
+  color: var(--oc-accent);
+}
+
+.oc-pill.is-added {
+  color: var(--vscode-terminal-ansiGreen);
+}
+
+.oc-pill.is-removed {
+  color: var(--vscode-terminal-ansiRed);
+}
+
+.oc-pill,
+.oc-chip {
+  border: 1px solid var(--oc-border-strong);
+  background: color-mix(in srgb, var(--oc-panel-strong) 84%, transparent 16%);
+  color: var(--oc-text);
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+.oc-chip {
+  cursor: pointer;
+}
+
+.oc-chip.is-active,
+.oc-btn-primary {
+  background: var(--oc-accent);
+  color: var(--oc-accent-text);
+  border-color: transparent;
+}
+
+.oc-btn {
+  border: 1px solid var(--oc-border-strong);
+  background: color-mix(in srgb, var(--oc-panel-strong) 84%, transparent 16%);
+  color: var(--oc-text);
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.oc-btn:disabled,
+.oc-composerInput:disabled,
+.oc-answerInput:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.oc-composerInput,
+.oc-answerInput {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--oc-border-strong);
+  background: color-mix(in srgb, black 36%, var(--oc-bg) 64%);
+  color: var(--oc-text);
+  padding: 12px;
+}
+
+.oc-composerInput {
+  min-height: 116px;
+}
+
+.oc-answerInput {
+  min-height: 70px;
+}
+
+.oc-composer.is-blocked {
+  opacity: 0.8;
+}
+
+.oc-emptyWrap {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px 0;
+}
+
+@media (max-width: 720px) {
+  .oc-footer,
+  .oc-transcript {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .oc-entry {
+    grid-template-columns: 6px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .oc-composerActions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

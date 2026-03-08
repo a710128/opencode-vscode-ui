@@ -1,0 +1,131 @@
+:root {
+  color-scheme: var(--vscode-color-scheme);
+}
+
+html, body, #root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--vscode-sideBar-background);
+  color: var(--vscode-sideBar-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: 13px;
+}
+
+.sv-shell,
+.sv-group,
+.sv-list {
+  width: 100%;
+  display: grid;
+  gap: 0;
+}
+
+.sv-todo,
+.sv-diff {
+  display: grid;
+  align-items: start;
+  gap: 6px;
+  line-height: 1.45;
+}
+
+.sv-todo {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.sv-diff {
+  width: 100%;
+  border: 0;
+  padding: 4px 0;
+  margin: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: inherit;
+  text-align: left;
+  cursor: pointer;
+  grid-template-columns: 3.5ch 0.75ch 3.5ch minmax(0, 1fr);
+  overflow: hidden;
+  gap: 0;
+}
+
+.sv-diff:hover {
+  background: color-mix(in srgb, var(--vscode-list-hoverBackground) 82%, transparent 18%);
+}
+
+.sv-todo {
+  width: 100%;
+  padding: 0;
+  border-radius: 0;
+}
+
+.sv-todo:hover {
+  background: color-mix(in srgb, var(--vscode-list-hoverBackground) 82%, transparent 18%);
+}
+
+.sv-todoPrefix,
+.sv-add,
+.sv-sep,
+.sv-del {
+  font-family: var(--vscode-editor-font-family, var(--vscode-font-family));
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.sv-diffPath,
+.sv-todoText {
+  min-width: 0;
+}
+
+.sv-diffPath {
+  white-space: nowrap;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sv-add {
+  color: var(--vscode-terminal-ansiGreen);
+  text-align: right;
+  justify-self: end;
+}
+
+.sv-sep {
+  color: var(--vscode-descriptionForeground);
+  text-align: center;
+  justify-self: center;
+}
+
+.sv-del {
+  color: var(--vscode-terminal-ansiRed);
+  text-align: left;
+  justify-self: start;
+}
+
+.sv-todo-in_progress .sv-todoPrefix,
+.sv-todo-in_progress .sv-todoText {
+  color: var(--vscode-terminal-ansiYellow);
+  font-weight: 700;
+}
+
+.sv-todo-completed .sv-todoPrefix,
+.sv-todo-completed .sv-todoText {
+  color: var(--vscode-descriptionForeground);
+}
+
+.sv-empty {
+  display: grid;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.sv-emptyTitle {
+  font-weight: 600;
+}
+
+.sv-emptyText {
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.45;
+}
