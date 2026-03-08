@@ -20,6 +20,8 @@ export type SessionBootstrap = {
 export type SessionSnapshot = SessionBootstrap & {
   sessionStatus?: SessionStatus
   messages: SessionMessage[]
+  childMessages: Record<string, SessionMessage[]>
+  childSessions: Record<string, SessionInfo>
   submitting: boolean
   todos: Todo[]
   diff: FileDiff[]

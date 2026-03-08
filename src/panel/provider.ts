@@ -4,6 +4,7 @@ import { postToWebview } from "../bridge/host"
 import { SESSION_PANEL_VIEW_TYPE, type SessionBootstrap, type SessionPanelRef, type SessionSnapshot, type WebviewMessage } from "../bridge/types"
 import { EventHub } from "../core/events"
 import type {
+  Client,
   FileDiff,
   MessagePart,
   PermissionReply,
@@ -169,6 +170,8 @@ class SessionPanelController implements vscode.Disposable {
           workspaceName,
           message: "Workspace runtime is starting.",
           messages: [],
+          childMessages: {},
+          childSessions: {},
           submitting: this.submitting,
           todos: [],
           diff: [],
@@ -187,6 +190,8 @@ class SessionPanelController implements vscode.Disposable {
           workspaceName,
           message: rt.err || "Workspace runtime is not ready.",
           messages: [],
+          childMessages: {},
+          childSessions: {},
           submitting: this.submitting,
           todos: [],
           diff: [],
@@ -199,7 +204,7 @@ class SessionPanelController implements vscode.Disposable {
       }
 
     try {
-      const [sessionRes, sessionsRes, messageRes, statusRes, todoRes, diffRes, permissionRes, questionRes] = await Promise.all([
+      const [sessionRes, sessionsRes, rootMessageRes, statusRes, todoRes, diffRes, permissionRes, questionRes] = await Promise.all([
         rt.sdk.session.get({
           sessionID: this.ref.sessionId,
           directory: rt.dir,
@@ -240,6 +245,8 @@ class SessionPanelController implements vscode.Disposable {
           workspaceName,
           message: "Session metadata was not found for this workspace.",
           messages: [],
+          childMessages: {},
+          childSessions: {},
           submitting: this.submitting,
           todos: [],
           diff: [],
@@ -253,7 +260,8 @@ class SessionPanelController implements vscode.Disposable {
 
       rt.sessions.set(session.id, session)
       const relatedSessionIds = collectRelatedSessionIds(session, sessionsRes.data ?? [])
-      const messages = sortMessages(messageRes.data ?? [])
+      const [messages, childMessages] = await relatedMessages(rt.sdk, rt.dir, this.ref.sessionId, relatedSessionIds, rootMessageRes.data ?? [])
+      const childSessions = relatedSessionMap(sessionsRes.data ?? [], this.ref.sessionId, relatedSessionIds)
       const navigation = nav(session, sessionsRes.data ?? [])
       return patch({
         status: "ready",
@@ -262,6 +270,8 @@ class SessionPanelController implements vscode.Disposable {
         session,
         sessionStatus: statusRes.data?.[this.ref.sessionId] ?? idle(),
         messages,
+        childMessages,
+        childSessions,
         submitting: this.submitting,
         todos: todoRes.data ?? [],
         diff: sortDiff(diffRes.data ?? []),
@@ -279,6 +289,8 @@ class SessionPanelController implements vscode.Disposable {
         workspaceName,
         message: text(err),
         messages: [],
+        childMessages: {},
+        childSessions: {},
         submitting: this.submitting,
         todos: [],
         diff: [],
@@ -643,9 +655,20 @@ function reduce(payload: SessionSnapshot, event: SessionEvent) {
 
   if (event.type === "message.updated") {
     const props = event.properties as { info: SessionMessage["info"] }
-    if (props.info.sessionID !== payload.sessionRef.sessionId) {
+    if (!payload.relatedSessionIds.includes(props.info.sessionID)) {
       return
     }
+
+    if (props.info.sessionID !== payload.sessionRef.sessionId) {
+      return {
+        ...payload,
+        childMessages: {
+          ...payload.childMessages,
+          [props.info.sessionID]: upsertMessage(payload.childMessages[props.info.sessionID] ?? [], props.info),
+        },
+      }
+    }
+
     return {
       ...payload,
       messages: upsertMessage(payload.messages, props.info),
@@ -654,9 +677,20 @@ function reduce(payload: SessionSnapshot, event: SessionEvent) {
 
   if (event.type === "message.removed") {
     const props = event.properties as { sessionID: string; messageID: string }
-    if (props.sessionID !== payload.sessionRef.sessionId) {
+    if (!payload.relatedSessionIds.includes(props.sessionID)) {
       return
     }
+
+    if (props.sessionID !== payload.sessionRef.sessionId) {
+      return {
+        ...payload,
+        childMessages: {
+          ...payload.childMessages,
+          [props.sessionID]: (payload.childMessages[props.sessionID] ?? []).filter((item) => item.info.id !== props.messageID),
+        },
+      }
+    }
+
     return {
       ...payload,
       messages: payload.messages.filter((item) => item.info.id !== props.messageID),
@@ -665,9 +699,20 @@ function reduce(payload: SessionSnapshot, event: SessionEvent) {
 
   if (event.type === "message.part.updated") {
     const props = event.properties as { part: MessagePart }
-    if (props.part.sessionID !== payload.sessionRef.sessionId) {
+    if (!payload.relatedSessionIds.includes(props.part.sessionID)) {
       return
     }
+
+    if (props.part.sessionID !== payload.sessionRef.sessionId) {
+      return {
+        ...payload,
+        childMessages: {
+          ...payload.childMessages,
+          [props.part.sessionID]: upsertPart(payload.childMessages[props.part.sessionID] ?? [], props.part),
+        },
+      }
+    }
+
     const messages = upsertPart(payload.messages, props.part)
     return {
       ...payload,
@@ -681,6 +726,7 @@ function reduce(payload: SessionSnapshot, event: SessionEvent) {
     return {
       ...payload,
       messages: removePart(payload.messages, props.messageID, props.partID),
+      childMessages: removePartFromChildren(payload.childMessages, props.messageID, props.partID),
     }
   }
 
@@ -692,9 +738,20 @@ function reduce(payload: SessionSnapshot, event: SessionEvent) {
       field: string
       delta: string
     }
-    if (props.sessionID !== payload.sessionRef.sessionId) {
+    if (!payload.relatedSessionIds.includes(props.sessionID)) {
       return
     }
+
+    if (props.sessionID !== payload.sessionRef.sessionId) {
+      return {
+        ...payload,
+        childMessages: {
+          ...payload.childMessages,
+          [props.sessionID]: appendDelta(payload.childMessages[props.sessionID] ?? [], props.messageID, props.partID, props.field, props.delta),
+        },
+      }
+    }
+
     return {
       ...payload,
       messages: appendDelta(payload.messages, props.messageID, props.partID, props.field, props.delta),
@@ -797,6 +854,14 @@ function removePart(messages: SessionMessage[], messageID: string, partID: strin
   })
 }
 
+function removePartFromChildren(children: Record<string, SessionMessage[]>, messageID: string, partID: string) {
+  const next: Record<string, SessionMessage[]> = {}
+  for (const [sessionID, messages] of Object.entries(children)) {
+    next[sessionID] = removePart(messages, messageID, partID)
+  }
+  return next
+}
+
 function appendDelta(messages: SessionMessage[], messageID: string, partID: string, field: string, delta: string) {
   return messages.map((item) => {
     if (item.info.id !== messageID) {
@@ -826,6 +891,46 @@ function appendDelta(messages: SessionMessage[], messageID: string, partID: stri
 
 function sortMessages(messages: SessionMessage[]) {
   return [...messages].sort((a, b) => cmp(a.info.id, b.info.id))
+}
+
+async function relatedMessages(
+  sdk: Client,
+  dir: string,
+  rootSessionID: string,
+  relatedSessionIds: string[],
+  rootMessages: SessionMessage[],
+): Promise<[SessionMessage[], Record<string, SessionMessage[]>]> {
+  const children = relatedSessionIds.filter((item) => item !== rootSessionID)
+  if (children.length === 0) {
+    return [sortMessages(rootMessages), {}]
+  }
+
+  const results = await Promise.all(children.map(async (sessionID) => ({
+    sessionID,
+    data: await sdk.session.messages({
+      sessionID,
+      directory: dir,
+      limit: 200,
+    }),
+  })))
+
+  const childMessages: Record<string, SessionMessage[]> = {}
+  for (const item of results) {
+    childMessages[item.sessionID] = sortMessages(item.data.data ?? [])
+  }
+
+  return [sortMessages(rootMessages), childMessages]
+}
+
+function relatedSessionMap(sessions: NonNullable<SessionSnapshot["session"]>[], rootSessionID: string, relatedSessionIds: string[]) {
+  const map: Record<string, NonNullable<SessionSnapshot["session"]>> = {}
+  for (const session of sessions) {
+    if (session.id === rootSessionID || !relatedSessionIds.includes(session.id)) {
+      continue
+    }
+    map[session.id] = session
+  }
+  return map
 }
 
 function sortDiff(diff: FileDiff[]) {

@@ -3,7 +3,7 @@ import hljs from "highlight.js"
 import MarkdownIt from "markdown-it"
 import { createRoot } from "react-dom/client"
 import type { HostMessage, SessionBootstrap, WebviewMessage } from "../../bridge/types"
-import type { FileDiff, FilePart, MessageInfo, MessagePart, PermissionRequest, QuestionRequest, SessionMessage, SessionStatus, TextPart, Todo } from "../../core/sdk"
+import type { FileDiff, FilePart, MessageInfo, MessagePart, PermissionRequest, QuestionRequest, SessionInfo, SessionMessage, SessionStatus, TextPart, Todo } from "../../core/sdk"
 import "./styles.css"
 
 declare global {
@@ -29,6 +29,8 @@ type AppState = {
   bootstrap: SessionBootstrap
   snapshot: {
     messages: SessionMessage[]
+    childMessages: Record<string, SessionMessage[]>
+    childSessions: Record<string, SessionInfo>
     sessionStatus?: SessionStatus
     submitting: boolean
     todos: Todo[]
@@ -82,6 +84,8 @@ const initialState: AppState = {
   },
   snapshot: {
     messages: [],
+    childMessages: {},
+    childSessions: {},
     sessionStatus: undefined,
     submitting: false,
     todos: [],
@@ -134,6 +138,8 @@ function App() {
           },
           snapshot: {
             messages: Array.isArray(message.payload.messages) ? message.payload.messages : [],
+            childMessages: recordOfMessageLists(message.payload.childMessages),
+            childSessions: recordOfSessions(message.payload.childSessions),
             sessionStatus: message.payload.sessionStatus,
             submitting: !!message.payload.submitting,
             todos: Array.isArray(message.payload.todos) ? message.payload.todos : [],
@@ -203,15 +209,17 @@ function App() {
 
   return (
     <WorkspaceDirContext.Provider value={state.bootstrap.sessionRef.dir || ""}>
-      <div className="oc-shell">
-        <main ref={timelineRef} className="oc-transcript">
-          <div className="oc-transcriptInner">
-            <Timeline state={state} />
-          </div>
-        </main>
+      <ChildMessagesContext.Provider value={state.snapshot.childMessages}>
+        <ChildSessionsContext.Provider value={state.snapshot.childSessions}>
+          <div className="oc-shell">
+            <main ref={timelineRef} className="oc-transcript">
+              <div className="oc-transcriptInner">
+                <Timeline state={state} />
+              </div>
+            </main>
 
-        <footer className="oc-footer">
-          <div className="oc-transcriptInner oc-footerInner">
+            <footer className="oc-footer">
+              <div className="oc-transcriptInner oc-footerInner">
           {firstPermission ? (
             <PermissionDock
               request={firstPermission}
@@ -349,10 +357,12 @@ function App() {
             </section>
           ) : null}
 
-          {!blocked && isChildSession ? <SubagentNotice /> : null}
+              {!blocked && isChildSession ? <SubagentNotice /> : null}
+              </div>
+            </footer>
           </div>
-        </footer>
-      </div>
+        </ChildSessionsContext.Provider>
+      </ChildMessagesContext.Provider>
     </WorkspaceDirContext.Provider>
   )
 }
@@ -450,9 +460,19 @@ const TranscriptVisibilityContext = React.createContext({
 })
 
 const WorkspaceDirContext = React.createContext("")
+const ChildMessagesContext = React.createContext<Record<string, SessionMessage[]>>({})
+const ChildSessionsContext = React.createContext<Record<string, SessionInfo>>({})
 
 function useWorkspaceDir() {
   return React.useContext(WorkspaceDirContext)
+}
+
+function useChildMessages() {
+  return React.useContext(ChildMessagesContext)
+}
+
+function useChildSessions() {
+  return React.useContext(ChildSessionsContext)
 }
 
 function PermissionDock(props: {
@@ -726,7 +746,7 @@ function ToolRow({ part, active = false }: { part: Extract<MessagePart, { type: 
   const summary = toolRowSummary(part)
   const extras = toolRowExtras(part)
   return (
-    <section className={`oc-toolRowWrap${active ? " is-active" : ""}${part.state?.status === "completed" ? " is-completed" : ""}`}>
+    <section className={`oc-toolRowWrap oc-toolRowWrap-${part.tool}${active ? " is-active" : ""}${part.state?.status === "completed" ? " is-completed" : ""}`}>
       <div className="oc-toolRow">
         <div className="oc-toolRowMain">
           <span className="oc-kicker">{toolLabel(part.tool)}</span>
@@ -752,22 +772,24 @@ function ToolRow({ part, active = false }: { part: Extract<MessagePart, { type: 
 function TaskToolRow({ part, active = false }: { part: Extract<MessagePart, { type: "tool" }>; active?: boolean }) {
   const childSessionID = toolChildSessionId(part)
   const agentName = taskAgentName(part)
-  const body = taskBody(part)
+  const child = useChildMessages()
+  const sessions = useChildSessions()
+  const title = taskSessionTitle(part, sessions[childSessionID])
+  const body = taskBody(part, child[childSessionID] || [])
   const clickable = !!childSessionID
 
   const content = (
     <>
-      <div className="oc-toolRow oc-taskRowHeader">
-        <div className="oc-toolRowMain oc-taskRowMain">
-          <span className="oc-kicker oc-toolLeadGhost" aria-hidden="true">task</span>
-          <span className="oc-taskTitleWrap">
-            <span className="oc-agentSwatch" style={{ background: agentColor(agentName) }} />
-            <span className="oc-toolRowTitle">{agentName}</span>
-            <ToolStatus state={part.state?.status} />
-          </span>
+      <div className="oc-taskRow">
+        <div className="oc-taskLine oc-taskLinePrimary">
+          <span className="oc-agentSwatch" style={{ background: agentColor(agentName) }} />
+          <span className="oc-taskAgent">{agentName}</span>
+          <span className="oc-taskColon">:</span>
+          <span className="oc-taskSessionTitle">{title}</span>
+          <ToolStatus state={part.state?.status} />
         </div>
+        {body ? <div className="oc-taskLine oc-taskLineSecondary"><span className="oc-taskBranch">└</span><span className="oc-taskBody">{body}</span></div> : null}
       </div>
-      {body ? <div className="oc-toolRowExtras oc-taskRowBody"><div className="oc-toolRowExtra">{body}</div></div> : null}
     </>
   )
 
@@ -775,7 +797,7 @@ function TaskToolRow({ part, active = false }: { part: Extract<MessagePart, { ty
     return (
       <button
         type="button"
-        className={`oc-toolRowWrap oc-toolRowBtn${active ? " is-active" : ""}${part.state?.status === "completed" ? " is-completed" : ""}`}
+        className={`oc-toolRowWrap oc-toolRowBtn oc-toolRowBtn-task${active ? " is-active" : ""}${part.state?.status === "completed" ? " is-completed" : ""}`}
         onClick={() => vscode.postMessage({ type: "navigateSession", sessionID: childSessionID })}
       >
         {content}
@@ -783,7 +805,7 @@ function TaskToolRow({ part, active = false }: { part: Extract<MessagePart, { ty
     )
   }
 
-  return <section className={`oc-toolRowWrap${active ? " is-active" : ""}${part.state?.status === "completed" ? " is-completed" : ""}`}>{content}</section>
+  return <section className={`oc-toolRowWrap oc-toolRowWrap-task${active ? " is-active" : ""}${part.state?.status === "completed" ? " is-completed" : ""}`}>{content}</section>
 }
 
 function ToolTextPanel({ part, active = false }: { part: Extract<MessagePart, { type: "tool" }>; active?: boolean }) {
@@ -1196,9 +1218,23 @@ function sessionTitle(bootstrap: SessionBootstrap) {
 
 function buildTimelineBlocks(messages: SessionMessage[], options: { showThinking: boolean; showInternals: boolean }) {
   const blocks: TimelineBlock[] = []
+  let assistants: SessionMessage[] = []
+
+  const flush = () => {
+    const meta = assistantTurnMeta(assistants)
+    if (meta) {
+      blocks.push({
+        kind: "assistant-meta",
+        key: `meta:${assistants[0]?.info.id || assistants.length}`,
+        text: meta,
+      })
+    }
+    assistants = []
+  }
 
   for (const message of messages) {
     if (message.info.role === "user") {
+      flush()
       blocks.push({
         kind: "user-message",
         key: `user:${message.info.id}`,
@@ -1215,16 +1251,10 @@ function buildTimelineBlocks(messages: SessionMessage[], options: { showThinking
         part,
       })
     }
-
-    const meta = assistantMessageMeta(message)
-    if (meta) {
-      blocks.push({
-        kind: "assistant-meta",
-        key: `meta:${message.info.id}`,
-        text: meta,
-      })
-    }
+    assistants.push(message)
   }
+
+  flush()
 
   return blocks
 }
@@ -1286,11 +1316,16 @@ function assistantSummary(messages: SessionMessage[]) {
   return parts.join(" · ")
 }
 
-function assistantMessageMeta(message: SessionMessage) {
+function assistantTurnMeta(messages: SessionMessage[]) {
+  if (messages.length === 0) {
+    return ""
+  }
+
   const parts: string[] = []
-  const agent = message.info.agent?.trim()
-  const created = formatTime(message.info.time?.created)
-  const summary = assistantSummary([message])
+  const first = messages[0]?.info
+  const agent = first?.agent?.trim()
+  const created = formatTime(first?.time?.created)
+  const summary = assistantSummary(messages)
 
   if (agent) {
     parts.push(agent)
@@ -1638,9 +1673,6 @@ function toolRowSummary(part: Extract<MessagePart, { type: "tool" }>) {
       return `${count} ${count === 1 ? "match" : "matches"}`
     }
   }
-  if (part.tool === "task") {
-    return taskSummary(part)
-  }
   if (part.tool === "websearch") {
     const count = numberValue(metadata.numResults) || numberValue(metadata.results)
     if (count > 0) {
@@ -1656,22 +1688,22 @@ function toolRowSummary(part: Extract<MessagePart, { type: "tool" }>) {
   return ""
 }
 
-function taskSummary(part: Extract<MessagePart, { type: "tool" }>) {
-  const metadata = recordValue(part.state?.metadata)
+function taskSummary(part: Extract<MessagePart, { type: "tool" }>, messages: SessionMessage[]) {
   const status = part.state?.status || "pending"
-  if (status === "completed") {
-    const calls = numberValue(metadata.toolCalls) || numberValue(metadata.toolcalls) || numberValue(metadata.calls) || numberValue(metadata.callCount) || numberValue(metadata.totalTools)
-    const duration = numberValue(metadata.duration) || numberValue(metadata.durationMs) || numberValue(metadata.elapsed) || numberValue(metadata.elapsedMs) || numberValue(metadata.totalDuration) || numberValue(metadata.totalDurationMs)
-    const parts: string[] = []
-    if (calls > 0) {
-      parts.push(`${calls} tools`)
-    }
-    if (duration > 0) {
-      parts.push(formatDuration(duration > 1000 ? Math.round(duration / 1000) : duration))
-    }
-    return parts.join(" · ")
+  if (status !== "completed") {
+    return ""
   }
-  return ""
+
+  const calls = childTools(messages).length
+  const duration = childDuration(messages)
+  const parts: string[] = []
+  if (calls > 0) {
+    parts.push(`${calls} tools`)
+  }
+  if (duration > 0) {
+    parts.push(formatDuration(Math.round(duration / 1000)))
+  }
+  return parts.join(" · ")
 }
 
 function toolRowExtras(part: Extract<MessagePart, { type: "tool" }>) {
@@ -1688,14 +1720,27 @@ function taskAgentName(part: Extract<MessagePart, { type: "tool" }>) {
   return stringValue(input.subagent_type) || stringValue(metadata.agent) || stringValue(metadata.name) || "subagent"
 }
 
-function taskBody(part: Extract<MessagePart, { type: "tool" }>) {
-  const metadata = recordValue(part.state?.metadata)
+function taskSessionTitle(part: Extract<MessagePart, { type: "tool" }>, session?: SessionInfo) {
+  if (session?.title?.trim()) {
+    return session.title.trim()
+  }
+
+  const title = stringValue(part.state?.title) || toolDetails(part).title
+  if (!title) {
+    return "Task"
+  }
+  return title.toLowerCase().startsWith("task ") ? title : `Task ${title}`
+}
+
+function taskBody(part: Extract<MessagePart, { type: "tool" }>, messages: SessionMessage[]) {
   const status = part.state?.status || "pending"
   if (status === "completed") {
-    return taskSummary(part)
+    return taskSummary(part, messages)
   }
-  const currentTool = stringValue(metadata.currentTool) || stringValue(metadata.tool)
-  const currentTitle = stringValue(metadata.currentTitle) || stringValue(metadata.title)
+  const calls = childTools(messages).length
+  const current = childCurrentTool(messages)
+  const currentTool = current ? toolLabel(current.tool) : ""
+  const currentTitle = current ? stringValue(current.state?.title) : ""
   const outputLines = (part.state?.output || "")
     .split("\n")
     .map((item) => item.trim())
@@ -1707,10 +1752,40 @@ function taskBody(part: Extract<MessagePart, { type: "tool" }>) {
   if (currentTitle) {
     return currentTitle
   }
+  if (calls > 0) {
+    return `${calls} ${calls === 1 ? "tool" : "tools"}`
+  }
+  if (status === "running") {
+    return ""
+  }
   if (outputLines.length > 0) {
     return outputLines[outputLines.length - 1]
   }
-  return status === "running" ? "Running…" : "Queued…"
+  return "Queued…"
+}
+
+function childTools(messages: SessionMessage[]) {
+  return messages.flatMap((message) => message.parts.filter((part): part is Extract<MessagePart, { type: "tool" }> => part.type === "tool"))
+}
+
+function childCurrentTool(messages: SessionMessage[]) {
+  const tools = childTools(messages)
+  for (let index = tools.length - 1; index >= 0; index -= 1) {
+    const part = tools[index]
+    if (stringValue(part.state?.title)) {
+      return part
+    }
+  }
+  return tools[tools.length - 1]
+}
+
+function childDuration(messages: SessionMessage[]) {
+  const start = messages.find((message) => message.info.role === "user")?.info.time.created
+  const end = [...messages].reverse().find((message) => message.info.role === "assistant")?.info.time.completed
+  if (typeof start !== "number" || typeof end !== "number" || end < start) {
+    return 0
+  }
+  return end - start
 }
 
 function ToolStatus({ state }: { state?: string }) {
@@ -2215,6 +2290,32 @@ function fileLabel(value: string) {
 
 function stringList(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
+}
+
+function recordOfMessageLists(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return {} as Record<string, SessionMessage[]>
+  }
+
+  const out: Record<string, SessionMessage[]> = {}
+  for (const [key, item] of Object.entries(value)) {
+    out[key] = Array.isArray(item) ? item as SessionMessage[] : []
+  }
+  return out
+}
+
+function recordOfSessions(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return {} as Record<string, SessionInfo>
+  }
+
+  const out: Record<string, SessionInfo> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (item && typeof item === "object") {
+      out[key] = item as SessionInfo
+    }
+  }
+  return out
 }
 
 function stringValue(value: unknown) {

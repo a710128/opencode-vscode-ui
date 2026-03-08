@@ -11,14 +11,16 @@
   --oc-muted: var(--vscode-descriptionForeground);
   --oc-fg-primary: var(--oc-text);
   --oc-fg-muted: var(--oc-muted);
-  --oc-accent: var(--vscode-button-background);
-  --oc-accent-text: var(--vscode-button-foreground);
-  --oc-rail-user: color-mix(in srgb, var(--oc-accent) 72%, transparent 28%);
+  --oc-accent: #fff;
+  --oc-accent-text: #000;
+  --oc-hover-block: color-mix(in srgb, var(--oc-accent) 10%, transparent 90%);
+  --oc-hover-block-inset: color-mix(in srgb, var(--oc-accent) 6%, transparent 94%);
+  --oc-rail-user: #4ea1ff;
   --oc-warning: var(--vscode-editorWarning-foreground);
   --oc-error: var(--vscode-errorForeground);
   --oc-success: var(--vscode-testing-iconPassed, #4caf50);
   --oc-mono: var(--vscode-editor-font-family, monospace);
-  --oc-ui: var(--vscode-font-family);
+  --oc-ui: var(--oc-mono);
 }
 
 * {
@@ -146,7 +148,7 @@ button {
 
 .oc-turnUser {
   position: relative;
-  padding: 10px 12px;
+  padding: 10px 12px 10px 14px;
   border: 0;
   background: var(--oc-surface-block);
 }
@@ -169,7 +171,6 @@ button {
 
 .oc-turnMeta {
   padding: 0 12px 10px;
-  background: var(--oc-surface-block);
   color: var(--oc-fg-muted);
   font-size: 11px;
   line-height: 1.5;
@@ -217,18 +218,30 @@ button {
   background: var(--oc-surface-block);
 }
 
+.oc-toolRowWrap-read,
+.oc-toolRowWrap-glob,
+.oc-toolRowWrap-grep,
+.oc-toolRowWrap-bash {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.oc-toolRowWrap-task,
+.oc-toolRowBtn.oc-toolRowBtn-task {
+  padding-left: 11px;
+  padding-right: 11px;
+}
+
 .oc-toolRowBtn {
   width: 100%;
   padding: 0;
   border: 1px solid transparent;
-  background: transparent;
   text-align: left;
   cursor: pointer;
 }
 
 .oc-toolRowBtn:hover {
   border-color: color-mix(in srgb, var(--oc-accent) 38%, transparent 62%);
-  background: transparent;
 }
 
 .oc-toolRow {
@@ -236,33 +249,57 @@ button {
   padding: 0;
 }
 
-.oc-taskRowHeader {
-  align-items: center;
+.oc-taskRow {
+  display: grid;
+  gap: 4px;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
-.oc-taskRowMain {
-  gap: 8px;
-}
-
-.oc-toolLeadGhost {
-  visibility: hidden;
-}
-
-.oc-taskTitleWrap {
-  position: relative;
-  display: inline-flex;
+.oc-taskLine {
+  display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+}
+
+.oc-taskLineSecondary {
+  padding-left: 16px;
+  color: var(--oc-fg-muted);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .oc-agentSwatch {
-  position: absolute;
-  right: calc(100% + 18px);
-  top: 50%;
-  transform: translateY(-50%);
+  position: static;
   width: 10px;
   height: 10px;
   border-radius: 1px;
+  flex: 0 0 auto;
+}
+
+.oc-taskAgent {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--oc-fg-primary);
+}
+
+.oc-taskColon,
+.oc-taskBranch {
+  flex: 0 0 auto;
+}
+
+.oc-taskSessionTitle,
+.oc-taskBody {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oc-taskSessionTitle {
+  font-size: 12px;
+  color: var(--oc-fg-primary);
 }
 
 .oc-toolSpinner {
@@ -307,13 +344,11 @@ button {
   display: grid;
   gap: 6px;
   border-color: color-mix(in srgb, var(--oc-border) 76%, transparent 24%);
-  background: var(--oc-surface-block);
 }
 
 .oc-toolPanel.is-completed,
 .oc-toolRowWrap.is-completed {
   border-color: color-mix(in srgb, var(--oc-border) 54%, transparent 46%);
-  background: var(--oc-surface-block);
 }
 
 .oc-toolPanel.is-active,
@@ -348,8 +383,9 @@ button {
   line-height: 1.45;
 }
 
-.oc-taskRowBody {
-  padding-left: 0;
+.oc-taskBody {
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .oc-linkList,
@@ -378,7 +414,6 @@ button {
   gap: 2px;
   padding: 8px 10px;
   border: 1px solid color-mix(in srgb, var(--oc-border) 70%, transparent 30%);
-  background: var(--oc-surface-inset);
 }
 
 .oc-patchItem {
@@ -386,7 +421,6 @@ button {
   gap: 8px;
   padding: 8px 10px;
   border: 1px solid color-mix(in srgb, var(--oc-border) 70%, transparent 30%);
-  background: var(--oc-surface-inset);
 }
 
 .oc-patchHeader,
@@ -421,7 +455,6 @@ button {
 .oc-diagnosticItem {
   padding: 6px 8px;
   border-left: 2px solid color-mix(in srgb, var(--oc-warning) 64%, transparent 36%);
-  background: var(--oc-surface-inset);
   color: var(--oc-fg-muted);
   font-size: 11px;
   line-height: 1.5;
@@ -489,7 +522,6 @@ button {
 .oc-part-text {
   padding: 10px 12px;
   border: 0;
-  background: var(--oc-surface-block);
 }
 
 .oc-partText,
@@ -513,19 +545,16 @@ button {
 .oc-part-inline {
   padding: 10px 12px;
   border: 0;
-  background: var(--oc-surface-block);
 }
 
 .oc-part-compact {
   padding: 10px 12px;
   border: 0;
-  background: var(--oc-surface-block);
 }
 
 .oc-part-reasoning {
   padding: 8px 12px;
   border: 0;
-  background: var(--oc-surface-block);
 }
 
 @keyframes oc-spin {
@@ -547,12 +576,10 @@ button {
 .oc-part-compaction,
 .oc-part-step-start,
 .oc-part-step-finish {
-  background: var(--oc-surface-block);
 }
 
 .oc-partTerminal {
   padding: 10px 12px;
-  background: var(--oc-surface-inset);
   border-left: 2px solid color-mix(in srgb, var(--oc-accent) 72%, transparent 28%);
 }
 
@@ -561,7 +588,6 @@ button {
   overflow-x: auto;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--oc-border-strong) 72%, transparent 28%);
-  background: var(--oc-surface-inset);
   border-left: 2px solid color-mix(in srgb, var(--oc-accent) 72%, transparent 28%);
 }
 
@@ -570,7 +596,6 @@ button {
 }
 
 .oc-codeBlock .hljs {
-  background: transparent;
   color: var(--oc-fg-primary);
 }
 
@@ -637,7 +662,6 @@ button {
   display: grid;
   gap: 0;
   border: 1px solid color-mix(in srgb, var(--oc-border-strong) 72%, transparent 28%);
-  background: var(--oc-surface-inset);
 }
 
 .oc-splitDiffHead,
@@ -684,9 +708,7 @@ button {
   color: var(--oc-fg-muted);
 }
 
-.oc-splitDiffLine.is-empty {
-  background: var(--oc-surface-inset);
-}
+
 
 .oc-markdown {
   font-family: var(--oc-ui);
@@ -713,12 +735,10 @@ button {
 }
 
 .oc-markdown.is-subtle blockquote {
-  background: var(--oc-surface-inset);
   border-left-color: color-mix(in srgb, var(--oc-border-strong) 48%, transparent 52%);
 }
 
 .oc-markdown.is-subtle pre {
-  background: var(--oc-surface-inset);
   border-color: color-mix(in srgb, var(--oc-border-strong) 45%, transparent 55%);
   border-left-color: color-mix(in srgb, var(--oc-border-strong) 52%, transparent 48%);
 }
@@ -773,7 +793,6 @@ button {
 .oc-markdown blockquote {
   padding: 8px 12px;
   border-left: 2px solid var(--oc-border-strong);
-  background: var(--oc-surface-inset);
   color: var(--oc-fg-muted);
 }
 
@@ -789,7 +808,6 @@ button {
 .oc-inlineCode {
   padding: 1px 5px;
   border: 1px solid var(--oc-border-strong);
-  background: var(--oc-surface-inset);
   color: color-mix(in srgb, var(--oc-fg-primary) 90%, var(--vscode-terminal-ansiCyan) 10%);
 }
 
@@ -797,12 +815,10 @@ button {
   overflow-x: auto;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--oc-border-strong) 58%, transparent 42%);
-  background: var(--oc-surface-inset);
   border-left: 1px solid color-mix(in srgb, var(--oc-border-strong) 62%, transparent 38%);
 }
 
 .oc-markdown pre code {
-  background: transparent;
   padding: 0;
   border: 0;
 }
@@ -821,7 +837,6 @@ button {
 
 .oc-markdown th {
   color: var(--oc-fg-muted);
-  background: var(--oc-surface-inset);
 }
 
 .oc-markdown hr {
@@ -831,7 +846,6 @@ button {
 
 .oc-markdown .hljs {
   display: block;
-  background: transparent;
   color: var(--oc-fg-primary);
 }
 
@@ -891,7 +905,6 @@ button {
   width: 100%;
   margin: 0;
   padding: 8px 12px;
-  background: var(--oc-surface-block);
   color: var(--oc-fg-muted);
   font-size: 11px;
   line-height: 1.4;
@@ -1001,7 +1014,6 @@ button {
 .oc-inlineLinkBtn {
   appearance: none;
   border: 0;
-  background: transparent;
   color: inherit;
   padding: 0;
   margin: 0;
@@ -1026,7 +1038,6 @@ button {
 
 .oc-toggleBtn {
   border: 1px solid var(--oc-border-strong);
-  background: transparent;
   color: var(--oc-fg-muted);
   padding: 4px 8px;
   font-size: 11px;
@@ -1087,4 +1098,12 @@ button {
     flex-direction: column;
     align-items: flex-start;
   }
+}
+.oc-toolRowWrap.oc-toolRowBtn-task:hover,
+.oc-toolRowWrap.oc-toolRowBtn-task:focus-visible,
+.oc-toolRowWrap.oc-toolRowBtn-task.is-completed:hover,
+.oc-toolRowWrap.oc-toolRowBtn-task.is-active:hover,
+.oc-toolRowWrap.oc-toolRowWrap-task:hover {
+  background: var(--oc-hover-block);
+  box-shadow: inset 0 0 0 1px var(--oc-hover-block-inset);
 }
