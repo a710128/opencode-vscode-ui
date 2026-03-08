@@ -58,7 +58,7 @@ button {
 }
 
 .oc-footer {
-  padding: 8px 22px 12px;
+  padding: 8px 0 12px;
 }
 
 .oc-sessionBlock,
@@ -109,7 +109,7 @@ button {
 .oc-transcript {
   min-height: 0;
   overflow: auto;
-  padding: 16px 22px 18px;
+  padding: 16px 0 18px;
 }
 
 .oc-transcriptInner {
@@ -137,21 +137,16 @@ button {
 
 .oc-turn {
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
 }
 
 .oc-rail {
   width: 2px;
   min-height: 100%;
-  background: color-mix(in srgb, var(--oc-border-strong) 58%, transparent 42%);
+  background: transparent;
   box-shadow: none;
   justify-self: center;
-}
-
-.oc-turn-hasUser .oc-rail {
-  background: color-mix(in srgb, var(--oc-accent) 70%, transparent 30%);
 }
 
 .oc-turnBody {
@@ -166,9 +161,20 @@ button {
 }
 
 .oc-turnUser {
+  position: relative;
   padding: 10px 12px;
-  border-color: color-mix(in srgb, var(--oc-border-strong) 46%, var(--oc-border) 54%);
+  border: 0;
   background: linear-gradient(180deg, color-mix(in srgb, var(--oc-panel-strong) 82%, transparent 18%), color-mix(in srgb, var(--oc-panel-soft) 94%, transparent 6%));
+}
+
+.oc-turnUser::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: color-mix(in srgb, var(--oc-accent) 70%, transparent 30%);
 }
 
 .oc-turnAssistant {
@@ -176,7 +182,7 @@ button {
 }
 
 .oc-entryHeader-assistant {
-  padding-left: 0;
+  padding: 0 12px;
 }
 
 .oc-assistantFlow {
@@ -184,7 +190,7 @@ button {
 }
 
 .oc-turnMeta {
-  padding-left: 0;
+  padding: 0 12px;
   color: var(--oc-muted);
   font-size: 11px;
   line-height: 1.5;
@@ -212,11 +218,81 @@ button {
 .oc-toolRowWrap {
   display: grid;
   gap: 4px;
+  padding: 0 12px;
+}
+
+.oc-toolRowBtn {
+  width: 100%;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.oc-toolRowBtn:hover {
+  border-color: color-mix(in srgb, var(--oc-accent) 38%, transparent 62%);
+  background: color-mix(in srgb, var(--oc-panel-strong) 34%, transparent 66%);
 }
 
 .oc-toolRow {
   justify-content: space-between;
   padding: 1px 0;
+}
+
+.oc-taskRowHeader {
+  align-items: center;
+}
+
+.oc-taskRowMain {
+  gap: 8px;
+}
+
+.oc-toolLeadGhost {
+  visibility: hidden;
+}
+
+.oc-taskTitleWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.oc-agentSwatch {
+  position: absolute;
+  right: calc(100% + 18px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 1px;
+}
+
+.oc-toolSpinner {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  color: var(--oc-warning);
+}
+
+.oc-toolSpinner svg {
+  width: 100%;
+  height: 100%;
+  animation: oc-spin 0.8s linear infinite;
+}
+
+.oc-toolSpinnerTrack {
+  fill: none;
+  stroke: color-mix(in srgb, var(--oc-warning) 28%, transparent 72%);
+  stroke-width: 2;
+}
+
+.oc-toolSpinnerHead {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
 .oc-toolRowTitle,
@@ -258,13 +334,6 @@ button {
   gap: 10px;
 }
 
-.oc-toolStatus {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 10px;
-  color: var(--oc-muted);
-}
-
 .oc-toolRowSummary {
   color: var(--oc-muted);
   font-size: 11px;
@@ -274,7 +343,7 @@ button {
 .oc-toolRowExtras {
   display: grid;
   gap: 2px;
-  padding-left: 19px;
+  padding-left: 0;
 }
 
 .oc-toolRowExtra {
@@ -283,25 +352,8 @@ button {
   line-height: 1.45;
 }
 
-.oc-toolStatus.is-running,
-.oc-toolStatus.is-pending {
-  color: var(--oc-warning);
-}
-
-.oc-toolStatus.is-running {
-  text-shadow: 0 0 10px color-mix(in srgb, var(--oc-warning) 40%, transparent 60%);
-}
-
-.oc-toolStatus.is-pending {
-  color: color-mix(in srgb, var(--oc-warning) 76%, var(--oc-text) 24%);
-}
-
-.oc-toolStatus.is-completed {
-  color: var(--oc-muted);
-}
-
-.oc-toolStatus.is-error {
-  color: var(--oc-error);
+.oc-taskRowBody {
+  padding-left: 0;
 }
 
 .oc-linkList,
@@ -439,7 +491,7 @@ button {
 }
 
 .oc-part-text {
-  padding: 0;
+  padding: 0 12px;
   border: 0;
   background: transparent;
 }
@@ -463,7 +515,7 @@ button {
 }
 
 .oc-part-inline {
-  padding: 0;
+  padding: 0 12px;
   border: 0;
   background: transparent;
 }
@@ -477,8 +529,16 @@ button {
 .oc-part-reasoning {
   padding: 2px 0 2px 12px;
   border: 0;
-  border-left: 1px solid color-mix(in srgb, var(--oc-border-strong) 34%, transparent 66%);
   background: transparent;
+}
+
+@keyframes oc-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .oc-part-tool,
@@ -575,6 +635,61 @@ button {
 
 .oc-diffLine.is-meta {
   color: var(--oc-muted);
+}
+
+.oc-splitDiff {
+  display: grid;
+  gap: 0;
+  border: 1px solid color-mix(in srgb, var(--oc-border-strong) 72%, transparent 28%);
+  background: color-mix(in srgb, black 50%, var(--oc-bg) 50%);
+}
+
+.oc-splitDiffHead,
+.oc-splitDiffBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.oc-splitDiffHead {
+  border-bottom: 1px solid color-mix(in srgb, var(--oc-border-strong) 58%, transparent 42%);
+  color: var(--oc-muted);
+  font-size: 11px;
+}
+
+.oc-splitDiffHead span,
+.oc-splitDiffLine {
+  padding: 8px 10px;
+}
+
+.oc-splitDiffHead span + span,
+.oc-splitDiffLine:nth-child(2n) {
+  border-left: 1px solid color-mix(in srgb, var(--oc-border-strong) 58%, transparent 42%);
+}
+
+.oc-splitDiffLine {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--oc-mono);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.oc-splitDiffLine.is-add {
+  color: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 88%, var(--oc-text) 12%);
+  background: color-mix(in srgb, var(--vscode-diffEditor-insertedTextBackground, rgba(46, 160, 67, 0.15)) 80%, transparent 20%);
+}
+
+.oc-splitDiffLine.is-del {
+  color: color-mix(in srgb, var(--vscode-terminal-ansiRed) 88%, var(--oc-text) 12%);
+  background: color-mix(in srgb, var(--vscode-diffEditor-removedTextBackground, rgba(248, 81, 73, 0.15)) 80%, transparent 20%);
+}
+
+.oc-splitDiffLine.is-meta {
+  color: var(--oc-muted);
+}
+
+.oc-splitDiffLine.is-empty {
+  background: color-mix(in srgb, var(--oc-panel-soft) 36%, transparent 64%);
 }
 
 .oc-markdown {
@@ -777,6 +892,7 @@ button {
   grid-template-columns: minmax(16px, 1fr) auto minmax(16px, 1fr);
   align-items: center;
   gap: 8px;
+  padding: 0 12px;
   color: var(--oc-muted);
   font-size: 11px;
   line-height: 1.4;
@@ -964,8 +1080,8 @@ button {
 @media (max-width: 720px) {
   .oc-footer,
   .oc-transcript {
-    padding-left: 14px;
-    padding-right: 14px;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .oc-turn {

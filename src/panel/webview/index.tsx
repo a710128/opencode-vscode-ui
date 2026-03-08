@@ -202,15 +202,16 @@ function App() {
   }, [state.form.custom, state.form.selected])
 
   return (
-    <div className="oc-shell">
-      <main ref={timelineRef} className="oc-transcript">
-        <div className="oc-transcriptInner">
-          <Timeline state={state} />
-        </div>
-      </main>
+    <WorkspaceDirContext.Provider value={state.bootstrap.sessionRef.dir || ""}>
+      <div className="oc-shell">
+        <main ref={timelineRef} className="oc-transcript">
+          <div className="oc-transcriptInner">
+            <Timeline state={state} />
+          </div>
+        </main>
 
-      <footer className="oc-footer">
-        <div className="oc-transcriptInner oc-footerInner">
+        <footer className="oc-footer">
+          <div className="oc-transcriptInner oc-footerInner">
           {firstPermission ? (
             <PermissionDock
               request={firstPermission}
@@ -349,9 +350,10 @@ function App() {
           ) : null}
 
           {!blocked && isChildSession ? <SubagentNotice /> : null}
-        </div>
-      </footer>
-    </div>
+          </div>
+        </footer>
+      </div>
+    </WorkspaceDirContext.Provider>
   )
 }
 
@@ -420,8 +422,7 @@ function TurnView({ turn }: { turn: TimelineTurn }) {
   const activeToolID = latestActiveToolId(assistantParts)
 
   return (
-    <article className={`oc-turn${turn.user ? " oc-turn-hasUser" : ""}`}>
-      <div className="oc-rail" />
+    <article className="oc-turn">
       <div className="oc-turnBody">
         {turn.user ? (
           <section className="oc-turnUser">
@@ -462,9 +463,15 @@ const TranscriptVisibilityContext = React.createContext({
   showInternals: false,
 })
 
+const WorkspaceDirContext = React.createContext("")
+
 function useTranscriptVisibility() {
   const visibility = React.useContext(TranscriptVisibilityContext)
   return [visibility.showThinking, visibility.showInternals] as const
+}
+
+function useWorkspaceDir() {
+  return React.useContext(WorkspaceDirContext)
 }
 
 function PermissionDock(props: {
@@ -726,10 +733,15 @@ function ToolPartView({ part, active = false }: { part: Extract<MessagePart, { t
 }
 
 function ToolRow({ part, active = false }: { part: Extract<MessagePart, { type: "tool" }>; active?: boolean }) {
+  if (part.tool === "task") {
+    return <TaskToolRow part={part} active={active} />
+  }
+
   const details = toolDetails(part)
   const childSessionID = toolChildSessionId(part)
+  const workspaceDir = useWorkspaceDir()
   const title = toolRowTitle(part, details)
-  const subtitle = toolRowSubtitle(part, details)
+  const subtitle = toolRowSubtitle(part, details, workspaceDir)
   const summary = toolRowSummary(part)
   const extras = toolRowExtras(part)
   return (
@@ -744,7 +756,7 @@ function ToolRow({ part, active = false }: { part: Extract<MessagePart, { type: 
           {subtitle ? <span className="oc-partMeta">{subtitle}</span> : null}
           {summary ? <span className="oc-toolRowSummary">{summary}</span> : null}
           {childSessionID ? <button type="button" className="oc-inlineLinkBtn" onClick={() => vscode.postMessage({ type: "navigateSession", sessionID: childSessionID })}>Open child</button> : null}
-          <span className={`oc-toolStatus is-${part.state?.status || "pending"}`}>{part.state?.status || "pending"}</span>
+          <ToolStatus state={part.state?.status} />
         </div>
       </div>
       {extras.length > 0 ? (
@@ -754,6 +766,43 @@ function ToolRow({ part, active = false }: { part: Extract<MessagePart, { type: 
       ) : null}
     </section>
   )
+}
+
+function TaskToolRow({ part, active = false }: { part: Extract<MessagePart, { type: "tool" }>; active?: boolean }) {
+  const childSessionID = toolChildSessionId(part)
+  const agentName = taskAgentName(part)
+  const body = taskBody(part)
+  const clickable = !!childSessionID
+
+  const content = (
+    <>
+      <div className="oc-toolRow oc-taskRowHeader">
+        <div className="oc-toolRowMain oc-taskRowMain">
+          <span className="oc-kicker oc-toolLeadGhost" aria-hidden="true">task</span>
+          <span className="oc-taskTitleWrap">
+            <span className="oc-agentSwatch" style={{ background: agentColor(agentName) }} />
+            <span className="oc-toolRowTitle">{agentName}</span>
+            <ToolStatus state={part.state?.status} />
+          </span>
+        </div>
+      </div>
+      {body ? <div className="oc-toolRowExtras oc-taskRowBody"><div className="oc-toolRowExtra">{body}</div></div> : null}
+    </>
+  )
+
+  if (clickable) {
+    return (
+      <button
+        type="button"
+        className={`oc-toolRowWrap oc-toolRowBtn${active ? " is-active" : ""}${part.state?.status === "completed" ? " is-completed" : ""}`}
+        onClick={() => vscode.postMessage({ type: "navigateSession", sessionID: childSessionID })}
+      >
+        {content}
+      </button>
+    )
+  }
+
+  return <section className={`oc-toolRowWrap${active ? " is-active" : ""}${part.state?.status === "completed" ? " is-completed" : ""}`}>{content}</section>
 }
 
 function ToolTextPanel({ part, active = false }: { part: Extract<MessagePart, { type: "tool" }>; active?: boolean }) {
@@ -778,7 +827,7 @@ function ToolTextPanel({ part, active = false }: { part: Extract<MessagePart, { 
           </div>
           <div className="oc-toolHeaderMeta">
             {details.subtitle ? <span className="oc-partMeta">{details.subtitle}</span> : null}
-            <span className={`oc-toolStatus is-${part.state?.status || "pending"}`}>{part.state?.status || "pending"}</span>
+            <ToolStatus state={part.state?.status} />
           </div>
         </div>
       </button>
@@ -814,7 +863,7 @@ function ToolLinksPanel({ part, active = false }: { part: Extract<MessagePart, {
           </div>
           <div className="oc-toolHeaderMeta">
             {details.subtitle ? <span className="oc-partMeta">{details.subtitle}</span> : null}
-            <span className={`oc-toolStatus is-${part.state?.status || "pending"}`}>{part.state?.status || "pending"}</span>
+            <ToolStatus state={part.state?.status} />
           </div>
         </div>
       </button>
@@ -861,7 +910,7 @@ function ToolFilesPanel({ part, active = false }: { part: Extract<MessagePart, {
           </div>
           <div className="oc-toolHeaderMeta">
             {details.subtitle ? <span className="oc-partMeta">{details.subtitle}</span> : null}
-            <span className={`oc-toolStatus is-${part.state?.status || "pending"}`}>{part.state?.status || "pending"}</span>
+            <ToolStatus state={part.state?.status} />
           </div>
         </div>
       </button>
@@ -902,7 +951,7 @@ function ToolWritePanel({ part, active = false }: { part: Extract<MessagePart, {
           </div>
           <div className="oc-toolHeaderMeta">
             {details.subtitle ? <span className="oc-partMeta">{details.subtitle}</span> : null}
-            <span className={`oc-toolStatus is-${part.state?.status || "pending"}`}>{part.state?.status || "pending"}</span>
+            <ToolStatus state={part.state?.status} />
           </div>
         </div>
       </button>
@@ -935,7 +984,7 @@ function ToolEditPanel({ part, active = false }: { part: Extract<MessagePart, { 
           </div>
           <div className="oc-toolHeaderMeta">
             {details.subtitle ? <span className="oc-partMeta">{details.subtitle}</span> : null}
-            <span className={`oc-toolStatus is-${part.state?.status || "pending"}`}>{part.state?.status || "pending"}</span>
+            <ToolStatus state={part.state?.status} />
           </div>
         </div>
       </button>
@@ -951,6 +1000,7 @@ function ToolApplyPatchPanel({ part, active = false }: { part: Extract<MessagePa
   const status = part.state?.status || "pending"
   const files = patchFiles(part)
   const [expanded, setExpanded] = React.useState(() => defaultToolExpanded(part, active, files.length > 0 || !!toolTextBody(part)))
+  const [mode, setMode] = React.useState<"unified" | "split">("unified")
 
   React.useEffect(() => {
     if (status === "running" || status === "pending" || status === "error" || active) {
@@ -968,10 +1018,16 @@ function ToolApplyPatchPanel({ part, active = false }: { part: Extract<MessagePa
           </div>
           <div className="oc-toolHeaderMeta">
             {details.subtitle ? <span className="oc-partMeta">{details.subtitle}</span> : null}
-            <span className={`oc-toolStatus is-${part.state?.status || "pending"}`}>{part.state?.status || "pending"}</span>
+            <ToolStatus state={part.state?.status} />
           </div>
         </div>
       </button>
+      {expanded && files.length > 0 ? (
+        <div className="oc-attachmentRow">
+          <button type="button" className={`oc-chip${mode === "unified" ? " is-active" : ""}`} onClick={() => setMode("unified")}>Unified</button>
+          <button type="button" className={`oc-chip${mode === "split" ? " is-active" : ""}`} onClick={() => setMode("split")}>Split</button>
+        </div>
+      ) : null}
       {expanded && files.length > 0 ? (
         <div className="oc-patchList">
           {files.map((item) => (
@@ -983,7 +1039,7 @@ function ToolApplyPatchPanel({ part, active = false }: { part: Extract<MessagePa
                   {item.summary ? <span className="oc-fileToolSummary">{item.summary}</span> : null}
                 </div>
               </div>
-              {item.diff ? <DiffBlock value={item.diff} /> : null}
+              {item.diff ? <DiffBlock value={item.diff} mode={mode} /> : null}
             </section>
           ))}
         </div>
@@ -999,11 +1055,38 @@ function CodeBlock({ value, filePath }: { value: string; filePath?: string }) {
   return <pre className="oc-codeBlock"><code dangerouslySetInnerHTML={{ __html: html }} /></pre>
 }
 
-function DiffBlock({ value }: { value: string }) {
+function DiffBlock({ value, mode = "unified" }: { value: string; mode?: "unified" | "split" }) {
+  return <DiffBlockImpl value={value} mode={mode} />
+}
+
+function DiffBlockImpl({ value, mode }: { value: string; mode: "unified" | "split" }) {
+  if (mode === "split") {
+    return <SplitDiffBlock value={value} />
+  }
   return (
     <pre className="oc-diffBlock">
       {value.split("\n").map((line, index) => <div key={`${index}:${line}`} className={diffLineClass(line)}>{line || " "}</div>)}
     </pre>
+  )
+}
+
+function SplitDiffBlock({ value }: { value: string }) {
+  const rows = React.useMemo(() => splitDiffRows(value), [value])
+  return (
+    <div className="oc-splitDiff">
+      <div className="oc-splitDiffHead">
+        <span>Before</span>
+        <span>After</span>
+      </div>
+      <div className="oc-splitDiffBody">
+        {rows.map((row, index) => (
+          <React.Fragment key={`${index}:${row.left}:${row.right}`}>
+            <div className={splitDiffClass(row.leftType)}>{row.left || " "}</div>
+            <div className={splitDiffClass(row.rightType)}>{row.right || " "}</div>
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -1028,9 +1111,9 @@ function ToolTodosPanel({ part, active = false }: { part: Extract<MessagePart, {
         </div>
         <div className="oc-toolHeaderMeta">
           {details.subtitle ? <span className="oc-partMeta">{details.subtitle}</span> : null}
-          <span className={`oc-toolStatus is-${part.state?.status || "pending"}`}>{part.state?.status || "pending"}</span>
+            <ToolStatus state={part.state?.status} />
+          </div>
         </div>
-      </div>
       {todos.length > 0 ? (
         <div className="oc-toolTodoList">
           {todos.map((item) => <div key={`${item.status}:${item.content}`} className={`oc-toolTodoItem is-${item.status}`}>{todoMarker(item.status)} {item.content}</div>)}
@@ -1053,9 +1136,9 @@ function ToolQuestionPanel({ part, active = false }: { part: Extract<MessagePart
         </div>
         <div className="oc-toolHeaderMeta">
           {details.subtitle ? <span className="oc-partMeta">{details.subtitle}</span> : null}
-          <span className={`oc-toolStatus is-${part.state?.status || "pending"}`}>{part.state?.status || "pending"}</span>
+            <ToolStatus state={part.state?.status} />
+          </div>
         </div>
-      </div>
       {answers.length > 0 ? <div className="oc-toolAnswerList">{answers.map((item) => <div key={item} className="oc-toolAnswerItem">{item}</div>)}</div> : null}
     </section>
   )
@@ -1247,7 +1330,11 @@ function partBucket(part: MessagePart, options: { showThinking: boolean; showInt
     return "secondary"
   }
 
-  if (part.type === "compaction" || part.type === "retry" || part.type === "agent" || part.type === "subtask" || part.type === "step-start") {
+  if (part.type === "step-start") {
+    return "hidden"
+  }
+
+  if (part.type === "compaction" || part.type === "retry" || part.type === "agent" || part.type === "subtask") {
     return "divider"
   }
 
@@ -1460,6 +1547,9 @@ function defaultToolExpanded(part: Extract<MessagePart, { type: "tool" }>, activ
   if (active || status === "running" || status === "pending" || status === "error") {
     return true
   }
+  if (part.tool === "bash" || part.tool === "apply_patch") {
+    return true
+  }
   if (part.tool === "bash" || part.tool === "edit" || part.tool === "write" || part.tool === "apply_patch") {
     return hasBody && status !== "completed"
   }
@@ -1473,16 +1563,33 @@ function bashHasPanel(part: Extract<MessagePart, { type: "tool" }>) {
 
 function toolRowTitle(part: Extract<MessagePart, { type: "tool" }>, details: ToolDetails) {
   const input = recordValue(part.state?.input)
+  if (part.tool === "read") {
+    const path = stringValue(input.filePath) || stringValue(input.path)
+    const items: string[] = [fileLabel(path) || details.title]
+    const offset = numberValue(input.offset)
+    const limit = numberValue(input.limit)
+    const args: string[] = []
+    if (offset > 0) {
+      args.push(`offset=${offset}`)
+    }
+    if (limit > 0) {
+      args.push(`limit=${limit}`)
+    }
+    if (args.length > 0) {
+      items.push(`[${args.join(", ")}]`)
+    }
+    return items.join(" ")
+  }
   if (part.tool === "bash") {
     return stringValue(input.command) || details.title
   }
   if (part.tool === "websearch" || part.tool === "codesearch") {
     const query = stringValue(input.query)
-    return query ? `"${query}"` : details.title
+    return query || details.title
   }
   if (part.tool === "glob" || part.tool === "grep") {
     const pattern = stringValue(input.pattern)
-    return pattern ? `"${pattern}"` : details.title
+    return pattern || details.title
   }
   if (part.tool === "list") {
     return details.title
@@ -1490,8 +1597,16 @@ function toolRowTitle(part: Extract<MessagePart, { type: "tool" }>, details: Too
   return details.title
 }
 
-function toolRowSubtitle(part: Extract<MessagePart, { type: "tool" }>, details: ToolDetails) {
+function toolRowSubtitle(part: Extract<MessagePart, { type: "tool" }>, details: ToolDetails, workspaceDir = "") {
   const input = recordValue(part.state?.input)
+  if (part.tool === "grep" || part.tool === "glob") {
+    const rawPath = stringValue(input.path) || stringValue(input.filePath)
+    const relPath = relativeWorkspacePath(rawPath, workspaceDir)
+    return relPath ? `in ${relPath}` : ""
+  }
+  if (part.tool === "read") {
+    return ""
+  }
   if (part.tool === "bash") {
     return stringValue(input.description) || details.subtitle
   }
@@ -1521,12 +1636,6 @@ function toolRowSummary(part: Extract<MessagePart, { type: "tool" }>) {
       return `${count} ${count === 1 ? "match" : "matches"}`
     }
   }
-  if (part.tool === "read") {
-    const loaded = stringList(metadata.loaded)
-    if (loaded.length > 0) {
-      return `loaded ${loaded.length}`
-    }
-  }
   if (part.tool === "task") {
     return taskSummary(part)
   }
@@ -1548,31 +1657,17 @@ function toolRowSummary(part: Extract<MessagePart, { type: "tool" }>) {
 function taskSummary(part: Extract<MessagePart, { type: "tool" }>) {
   const metadata = recordValue(part.state?.metadata)
   const status = part.state?.status || "pending"
-  const currentTool = stringValue(metadata.currentTool) || stringValue(metadata.tool)
-  const currentTitle = stringValue(metadata.currentTitle) || stringValue(metadata.title)
-  if (status === "running") {
-    if (currentTool && currentTitle) {
-      return `↳ ${capitalize(currentTool)} ${currentTitle}`
-    }
-    if (currentTitle) {
-      return `↳ ${currentTitle}`
-    }
-    return "delegating"
-  }
   if (status === "completed") {
-    const calls = numberValue(metadata.toolCalls) || numberValue(metadata.toolcalls) || numberValue(metadata.calls)
-    const duration = numberValue(metadata.duration) || numberValue(metadata.durationMs)
+    const calls = numberValue(metadata.toolCalls) || numberValue(metadata.toolcalls) || numberValue(metadata.calls) || numberValue(metadata.callCount) || numberValue(metadata.totalTools)
+    const duration = numberValue(metadata.duration) || numberValue(metadata.durationMs) || numberValue(metadata.elapsed) || numberValue(metadata.elapsedMs) || numberValue(metadata.totalDuration) || numberValue(metadata.totalDurationMs)
     const parts: string[] = []
     if (calls > 0) {
-      parts.push(`${calls} toolcalls`)
+      parts.push(`${calls} tools`)
     }
     if (duration > 0) {
       parts.push(formatDuration(duration > 1000 ? Math.round(duration / 1000) : duration))
     }
-    return parts.join(" · ") || "completed"
-  }
-  if (status === "pending") {
-    return "queued"
+    return parts.join(" · ")
   }
   return ""
 }
@@ -1582,16 +1677,123 @@ function toolRowExtras(part: Extract<MessagePart, { type: "tool" }>) {
   if (part.tool === "read") {
     return stringList(metadata.loaded).map((item) => `Loaded ${item}`)
   }
-  if (part.tool === "task") {
-    const output = part.state?.output || ""
-    const lines = output
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .filter((item) => !item.startsWith("task_id:") && item !== "<task_result>" && item !== "</task_result>")
-    return lines.slice(0, 2)
-  }
   return [] as string[]
+}
+
+function taskAgentName(part: Extract<MessagePart, { type: "tool" }>) {
+  const input = recordValue(part.state?.input)
+  const metadata = recordValue(part.state?.metadata)
+  return stringValue(input.subagent_type) || stringValue(metadata.agent) || stringValue(metadata.name) || "subagent"
+}
+
+function taskBody(part: Extract<MessagePart, { type: "tool" }>) {
+  const metadata = recordValue(part.state?.metadata)
+  const status = part.state?.status || "pending"
+  if (status === "completed") {
+    return taskSummary(part)
+  }
+  const currentTool = stringValue(metadata.currentTool) || stringValue(metadata.tool)
+  const currentTitle = stringValue(metadata.currentTitle) || stringValue(metadata.title)
+  const outputLines = (part.state?.output || "")
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => !item.startsWith("task_id:") && item !== "<task_result>" && item !== "</task_result>")
+  if (currentTool && currentTitle) {
+    return `${currentTool}: ${currentTitle}`
+  }
+  if (currentTitle) {
+    return currentTitle
+  }
+  if (outputLines.length > 0) {
+    return outputLines[outputLines.length - 1]
+  }
+  return status === "running" ? "Running…" : "Queued…"
+}
+
+function ToolStatus({ state }: { state?: string }) {
+  if (state !== "running") {
+    return null
+  }
+  return (
+    <span className="oc-toolSpinner" aria-label="running">
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <circle cx="8" cy="8" r="6" className="oc-toolSpinnerTrack" />
+        <path d="M 8 2 A 6 6 0 0 1 14 8" className="oc-toolSpinnerHead" />
+      </svg>
+    </span>
+  )
+}
+
+function splitDiffRows(value: string) {
+  const rows: Array<{ left: string; right: string; leftType: string; rightType: string }> = []
+  const lines = value.split("\n")
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] || ""
+    if (line.startsWith("@@") || line.startsWith("+++ ") || line.startsWith("--- ")) {
+      rows.push({ left: line, right: line, leftType: "meta", rightType: "meta" })
+      continue
+    }
+    if (line.startsWith("-")) {
+      const next = lines[index + 1] || ""
+      if (next.startsWith("+")) {
+        rows.push({ left: line, right: next, leftType: "del", rightType: "add" })
+        index += 1
+        continue
+      }
+      rows.push({ left: line, right: "", leftType: "del", rightType: "empty" })
+      continue
+    }
+    if (line.startsWith("+")) {
+      rows.push({ left: "", right: line, leftType: "empty", rightType: "add" })
+      continue
+    }
+    rows.push({ left: line, right: line, leftType: "ctx", rightType: "ctx" })
+  }
+  return rows
+}
+
+function splitDiffClass(type: string) {
+  if (type === "add") return "oc-splitDiffLine is-add"
+  if (type === "del") return "oc-splitDiffLine is-del"
+  if (type === "meta") return "oc-splitDiffLine is-meta"
+  if (type === "empty") return "oc-splitDiffLine is-empty"
+  return "oc-splitDiffLine"
+}
+
+function agentColor(name: string) {
+  const palette = [
+    "#7aa2f7",
+    "#9ece6a",
+    "#e0af68",
+    "#bb9af7",
+    "#f7768e",
+    "#7dcfff",
+    "#73daca",
+    "#ff9e64",
+  ]
+  let hash = 0
+  for (const char of name) {
+    hash = ((hash << 5) - hash) + char.charCodeAt(0)
+    hash |= 0
+  }
+  return palette[Math.abs(hash) % palette.length]
+}
+
+function relativeWorkspacePath(value: string, workspaceDir: string) {
+  const path = normalizePath(value)
+  const root = normalizePath(workspaceDir)
+  if (!path) {
+    return ""
+  }
+  if (root && path.startsWith(root.endsWith("/") ? root : `${root}/`)) {
+    return path.slice(root.length + (root.endsWith("/") ? 0 : 1))
+  }
+  return path
+}
+
+function normalizePath(value: string) {
+  return value.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "")
 }
 
 function toolChildSessionId(part: Extract<MessagePart, { type: "tool" }>) {
