@@ -23,6 +23,21 @@
   --oc-outputWindow-body-fg: color-mix(in srgb, var(--oc-accent) 86%, var(--oc-fg-primary) 14%);
   --oc-outputWindow-toggle-bg: color-mix(in srgb, var(--oc-accent) 70%, var(--oc-surface-block) 30%);
   --oc-outputWindow-toggle-hover: color-mix(in srgb, var(--oc-accent) 62%, var(--oc-surface-block) 38%);
+  --oc-diff-context: #828bb8;
+  --oc-diff-lineNo: #292e42;
+  --oc-diff-add-fg: #4fd6be;
+  --oc-diff-add-bg: #20303b;
+  --oc-diff-del-fg: #c53b53;
+  --oc-diff-del-bg: #37222c;
+  --oc-diff-syntax-comment: #828bb8;
+  --oc-diff-syntax-keyword: #c099ff;
+  --oc-diff-syntax-function: #82aaff;
+  --oc-diff-syntax-variable: #ff757f;
+  --oc-diff-syntax-string: #c3e88d;
+  --oc-diff-syntax-number: #ff966c;
+  --oc-diff-syntax-type: #ffc777;
+  --oc-diff-syntax-operator: #86e1fc;
+  --oc-diff-syntax-punctuation: #c8d3f5;
   --oc-warning: var(--vscode-editorWarning-foreground);
   --oc-error: var(--vscode-errorForeground);
   --oc-success: var(--vscode-testing-iconPassed, #4caf50);
@@ -142,6 +157,12 @@ button {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 8px;
+}
+
+.oc-transcriptToggleGroup {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
 }
 
@@ -372,6 +393,12 @@ button {
   gap: 10px;
 }
 
+.oc-patchPanel {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
 .oc-outputWindow {
   display: grid;
   gap: 0;
@@ -441,6 +468,10 @@ button {
   color: var(--oc-outputWindow-body-fg);
 }
 
+.oc-outputWindowBodyInner {
+  min-width: 0;
+}
+
 .oc-outputWindowBody.is-collapsed {
   overflow: hidden;
 }
@@ -467,12 +498,13 @@ button {
 }
 
 .oc-outputWindowToggle {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 28px;
-  padding: 6px 12px;
+  min-height: 22px;
+  padding: 3px 12px;
   border: 0;
   border-top: 1px solid color-mix(in srgb, var(--oc-outputWindow-border) 72%, transparent 28%);
   background: var(--oc-outputWindow-toggle-bg);
@@ -492,6 +524,17 @@ button {
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.oc-outputWindowToggleMeta {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  line-height: 1;
+  color: color-mix(in srgb, var(--oc-outputWindow-head-fg) 72%, transparent 28%);
+  pointer-events: none;
 }
 
 .oc-toolRowSummary {
@@ -725,7 +768,7 @@ button {
 
 .oc-diffBlock.is-window {
   border: 0;
-  padding: 10px 12px;
+  padding: 8px 10px;
   color: var(--oc-outputWindow-body-fg);
 }
 
@@ -778,22 +821,103 @@ button {
 }
 
 .oc-diffLine {
+  display: grid;
+  grid-template-columns: 40px 40px 14px minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: start;
+  padding: 2px 0;
   white-space: pre-wrap;
   word-break: break-word;
+  line-height: 1.35;
+  font-size: 11px;
+}
+
+.oc-diffLineNo {
+  color: var(--oc-fg-muted);
+}
+
+.oc-diffLineMarker {
+  color: var(--oc-fg-muted);
+}
+
+.oc-diffLineNo {
+  text-align: right;
+}
+
+.oc-diffLineMarker {
+  text-align: center;
+}
+
+.oc-diffLineText {
+  min-width: 0;
+  color: var(--oc-diff-context);
+}
+
+.oc-diffLineText.hljs,
+.oc-diffLineText .hljs {
+  display: block;
+  color: var(--oc-diff-syntax-punctuation);
+}
+
+.oc-diffLineText .hljs-comment,
+.oc-diffLineText .hljs-quote {
+  color: var(--oc-diff-syntax-comment);
+}
+
+.oc-diffLineText .hljs-keyword,
+.oc-diffLineText .hljs-selector-tag,
+.oc-diffLineText .hljs-literal,
+.oc-diffLineText .hljs-section,
+.oc-diffLineText .hljs-link {
+  color: var(--oc-diff-syntax-keyword);
+}
+
+.oc-diffLineText .hljs-string,
+.oc-diffLineText .hljs-symbol,
+.oc-diffLineText .hljs-bullet,
+.oc-diffLineText .hljs-addition {
+  color: var(--oc-diff-syntax-string);
+}
+
+.oc-diffLineText .hljs-title,
+.oc-diffLineText .hljs-name,
+.oc-diffLineText .hljs-type,
+.oc-diffLineText .hljs-attribute {
+  color: var(--oc-diff-syntax-type);
+}
+
+.oc-diffLineText .hljs-number,
+.oc-diffLineText .hljs-built_in,
+.oc-diffLineText .hljs-meta {
+  color: var(--oc-diff-syntax-number);
+}
+
+.oc-diffLineText .hljs-variable,
+.oc-diffLineText .hljs-template-variable,
+.oc-diffLineText .hljs-params {
+  color: var(--oc-diff-syntax-variable);
+}
+
+.oc-diffLineText .hljs-function,
+.oc-diffLineText .hljs-subst,
+.oc-diffLineText .hljs-tag,
+.oc-diffLineText .hljs-regexp {
+  color: var(--oc-diff-syntax-function);
+}
+
+.oc-diffLineText .hljs-operator,
+.oc-diffLineText .hljs-punctuation {
+  color: var(--oc-diff-syntax-operator);
 }
 
 .oc-diffLine.is-add {
-  color: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 88%, var(--oc-text) 12%);
-  background: color-mix(in srgb, var(--vscode-diffEditor-insertedTextBackground, rgba(46, 160, 67, 0.15)) 80%, transparent 20%);
+  color: var(--oc-diff-add-fg);
+  background: var(--oc-diff-add-bg);
 }
 
 .oc-diffLine.is-del {
-  color: color-mix(in srgb, var(--vscode-terminal-ansiRed) 88%, var(--oc-text) 12%);
-  background: color-mix(in srgb, var(--vscode-diffEditor-removedTextBackground, rgba(248, 81, 73, 0.15)) 80%, transparent 20%);
-}
-
-.oc-diffLine.is-meta {
-  color: var(--oc-fg-muted);
+  color: var(--oc-diff-del-fg);
+  background: var(--oc-diff-del-bg);
 }
 
 .oc-splitDiff {
@@ -806,24 +930,19 @@ button {
   border: 0;
 }
 
-.oc-splitDiffHead,
 .oc-splitDiffBody {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-.oc-splitDiffHead {
-  border-bottom: 1px solid color-mix(in srgb, var(--oc-border-strong) 58%, transparent 42%);
-  color: var(--oc-fg-muted);
-  font-size: 11px;
-}
-
-.oc-splitDiffHead span,
 .oc-splitDiffLine {
-  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: 40px 14px minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: start;
+  padding: 2px 8px;
 }
 
-.oc-splitDiffHead span + span,
 .oc-splitDiffLine:nth-child(2n) {
   border-left: 1px solid color-mix(in srgb, var(--oc-border-strong) 58%, transparent 42%);
 }
@@ -832,25 +951,19 @@ button {
   white-space: pre-wrap;
   word-break: break-word;
   font-family: var(--oc-mono);
-  font-size: 12px;
-  line-height: 1.65;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .oc-splitDiffLine.is-add {
-  color: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 88%, var(--oc-text) 12%);
-  background: color-mix(in srgb, var(--vscode-diffEditor-insertedTextBackground, rgba(46, 160, 67, 0.15)) 80%, transparent 20%);
+  color: var(--oc-diff-add-fg);
+  background: var(--oc-diff-add-bg);
 }
 
 .oc-splitDiffLine.is-del {
-  color: color-mix(in srgb, var(--vscode-terminal-ansiRed) 88%, var(--oc-text) 12%);
-  background: color-mix(in srgb, var(--vscode-diffEditor-removedTextBackground, rgba(248, 81, 73, 0.15)) 80%, transparent 20%);
+  color: var(--oc-diff-del-fg);
+  background: var(--oc-diff-del-bg);
 }
-
-.oc-splitDiffLine.is-meta {
-  color: var(--oc-fg-muted);
-}
-
-
 
 .oc-markdown {
   font-family: var(--oc-ui);

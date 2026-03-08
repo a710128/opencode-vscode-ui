@@ -371,6 +371,7 @@ function Timeline({ state }: { state: AppState }) {
   const messages = state.snapshot.messages
   const [showThinking, setShowThinking] = React.useState(true)
   const [showInternals, setShowInternals] = React.useState(false)
+  const [diffMode, setDiffMode] = React.useState<"unified" | "split">("unified")
 
   if (state.bootstrap.status === "error") {
     return <EmptyState title="Session unavailable" text={state.bootstrap.message || "The workspace runtime is not ready."} />
@@ -386,6 +387,7 @@ function Timeline({ state }: { state: AppState }) {
 
   const blocks = buildTimelineBlocks(messages, { showThinking, showInternals })
   const activeToolID = latestActiveToolId(blocks.flatMap((block) => block.kind === "assistant-part" ? [block.part] : []))
+  const hasPatchDiff = blocks.some((block) => block.kind === "assistant-part" && block.part.type === "tool" && block.part.tool === "apply_patch")
 
   return (
     <TranscriptVisibilityContext.Provider value={{ showThinking, showInternals }}>
@@ -397,8 +399,18 @@ function Timeline({ state }: { state: AppState }) {
           <button type="button" className={`oc-toggleBtn${showInternals ? " is-active" : ""}`} onClick={() => setShowInternals((current) => !current)}>
             Internals {showInternals ? "on" : "off"}
           </button>
+          {hasPatchDiff ? (
+            <div className="oc-transcriptToggleGroup" role="group" aria-label="Diff view mode">
+              <button type="button" className={`oc-toggleBtn${diffMode === "unified" ? " is-active" : ""}`} onClick={() => setDiffMode("unified")}>
+                Unified
+              </button>
+              <button type="button" className={`oc-toggleBtn${diffMode === "split" ? " is-active" : ""}`} onClick={() => setDiffMode("split")}>
+                Split
+              </button>
+            </div>
+          ) : null}
         </div>
-        {blocks.map((block) => <TimelineBlockView key={block.key} block={block} activeToolID={activeToolID} />)}
+        {blocks.map((block) => <TimelineBlockView key={block.key} block={block} activeToolID={activeToolID} diffMode={diffMode} />)}
       </div>
     </TranscriptVisibilityContext.Provider>
   )
@@ -428,7 +440,7 @@ type ToolFileSummary = {
   summary: string
 }
 
-function TimelineBlockView({ block, activeToolID }: { block: TimelineBlock; activeToolID: string }) {
+function TimelineBlockView({ block, activeToolID, diffMode }: { block: TimelineBlock; activeToolID: string; diffMode: "unified" | "split" }) {
   if (block.kind === "user-message") {
     const userText = primaryUserText(block.message)
     const userFiles = userAttachments(block.message)
@@ -455,9 +467,7 @@ function TimelineBlockView({ block, activeToolID }: { block: TimelineBlock; acti
   }
 
   const part = block.part
-  return (
-    <PartView part={part} active={part.type === "tool" && part.id === activeToolID} />
-  )
+  return <PartView part={part} active={part.type === "tool" && part.id === activeToolID} diffMode={diffMode} />
 }
 
 const TranscriptVisibilityContext = React.createContext({
@@ -656,7 +666,7 @@ function SubagentNotice() {
   )
 }
 
-function PartView({ part, active = false }: { part: MessagePart; active?: boolean }) {
+function PartView({ part, active = false, diffMode = "unified" }: { part: MessagePart; active?: boolean; diffMode?: "unified" | "split" }) {
   const meta = partMeta(part)
 
   if (part.type === "text") {
@@ -676,7 +686,7 @@ function PartView({ part, active = false }: { part: MessagePart; active?: boolea
   }
 
   if (part.type === "tool") {
-    return <ToolPartView part={part} active={active} />
+    return <ToolPartView part={part} active={active} diffMode={diffMode} />
   }
 
   if (isDividerPart(part)) {
@@ -705,7 +715,7 @@ function PartView({ part, active = false }: { part: MessagePart; active?: boolea
   )
 }
 
-function ToolPartView({ part, active = false }: { part: Extract<MessagePart, { type: "tool" }>; active?: boolean }) {
+function ToolPartView({ part, active = false, diffMode = "unified" }: { part: Extract<MessagePart, { type: "tool" }>; active?: boolean; diffMode?: "unified" | "split" }) {
   if (part.tool === "bash" && !bashHasPanel(part)) {
     return <ToolRow part={part} active={active} />
   }
@@ -725,7 +735,7 @@ function ToolPartView({ part, active = false }: { part: Extract<MessagePart, { t
   }
 
   if (variant === "files") {
-    return <ToolFilesPanel part={part} active={active} />
+    return <ToolFilesPanel part={part} active={active} diffMode={diffMode} />
   }
 
   if (variant === "links") {
@@ -906,17 +916,17 @@ function ToolLinksPanel({ part, active = false }: { part: Extract<MessagePart, {
   )
 }
 
-function ToolFilesPanel({ part, active = false }: { part: Extract<MessagePart, { type: "tool" }>; active?: boolean }) {
+function ToolFilesPanel({ part, active = false, diffMode = "unified" }: { part: Extract<MessagePart, { type: "tool" }>; active?: boolean; diffMode?: "unified" | "split" }) {
   if (part.tool === "write") {
     return <ToolWritePanel part={part} active={active} />
   }
 
   if (part.tool === "edit") {
-    return <ToolEditPanel part={part} active={active} />
+    return <ToolEditPanel part={part} active={active} diffMode={diffMode} />
   }
 
   if (part.tool === "apply_patch") {
-    return <ToolApplyPatchPanel part={part} active={active} />
+    return <ToolApplyPatchPanel part={part} active={active} diffMode={diffMode} />
   }
 
   const details = toolDetails(part)
@@ -992,7 +1002,7 @@ function ToolWritePanel({ part, active = false }: { part: Extract<MessagePart, {
   )
 }
 
-function ToolEditPanel({ part, active = false }: { part: Extract<MessagePart, { type: "tool" }>; active?: boolean }) {
+function ToolEditPanel({ part, active = false, diffMode = "unified" }: { part: Extract<MessagePart, { type: "tool" }>; active?: boolean; diffMode?: "unified" | "split" }) {
   const details = toolDetails(part)
   const status = part.state?.status || "pending"
   const diff = toolEditDiff(part)
@@ -1018,47 +1028,20 @@ function ToolEditPanel({ part, active = false }: { part: Extract<MessagePart, { 
           </div>
         </div>
       </button>
-      {expanded && diff ? <DiffBlock value={diff} /> : null}
+      {expanded && diff ? <DiffBlock value={diff} mode={diffMode} /> : null}
       {expanded && !diff && toolTextBody(part) ? <pre className="oc-partTerminal">{toolTextBody(part)}</pre> : null}
       {expanded && toolDiagnostics(part).length > 0 ? <DiagnosticsList items={toolDiagnostics(part)} /> : null}
     </section>
   )
 }
 
-function ToolApplyPatchPanel({ part, active = false }: { part: Extract<MessagePart, { type: "tool" }>; active?: boolean }) {
-  const details = toolDetails(part)
+function ToolApplyPatchPanel({ part, active = false, diffMode = "unified" }: { part: Extract<MessagePart, { type: "tool" }>; active?: boolean; diffMode?: "unified" | "split" }) {
   const status = part.state?.status || "pending"
   const files = patchFiles(part)
-  const [expanded, setExpanded] = React.useState(() => defaultToolExpanded(part, active, files.length > 0 || !!toolTextBody(part)))
-  const [mode, setMode] = React.useState<"unified" | "split">("unified")
-
-  React.useEffect(() => {
-    if (status === "running" || status === "pending" || status === "error" || active) {
-      setExpanded(true)
-    }
-  }, [active, status])
 
   return (
-    <section className={`oc-part oc-part-tool oc-toolPanel oc-toolPanel-files${active ? " is-active" : ""}${status === "completed" ? " is-completed" : ""}`}>
-      <button type="button" className="oc-toolTrigger" onClick={() => setExpanded((current: boolean) => !current)}>
-        <div className="oc-partHeader">
-          <div className="oc-toolHeaderMain">
-            <span className="oc-kicker">{toolLabel(part.tool)}</span>
-            <span className="oc-toolPanelTitle">{details.title}</span>
-          </div>
-          <div className="oc-toolHeaderMeta">
-            {details.subtitle ? <span className="oc-partMeta">{details.subtitle}</span> : null}
-            <ToolStatus state={part.state?.status} />
-          </div>
-        </div>
-      </button>
-      {expanded && files.length > 0 ? (
-        <div className="oc-attachmentRow">
-          <button type="button" className={`oc-chip${mode === "unified" ? " is-active" : ""}`} onClick={() => setMode("unified")}>Unified</button>
-          <button type="button" className={`oc-chip${mode === "split" ? " is-active" : ""}`} onClick={() => setMode("split")}>Split</button>
-        </div>
-      ) : null}
-      {expanded && files.length > 0 ? (
+    <section className={`oc-patchPanel${active ? " is-active" : ""}${status === "completed" ? " is-completed" : ""}`}>
+      {files.length > 0 ? (
         <div className="oc-patchList">
           {files.map((item) => (
             <section key={`${item.path}:${item.type}:${item.summary}`} className="oc-patchItem">
@@ -1066,19 +1049,19 @@ function ToolApplyPatchPanel({ part, active = false }: { part: Extract<MessagePa
                 action={item.type}
                 title={item.path}
                 running={status === "running"}
-                lineCount={item.diff ? diffOutputLineCount(item.diff, mode) : normalizedLineCount(item.summary)}
+                lineCount={item.diff ? diffOutputLineCount(item.diff, diffMode) : normalizedLineCount(item.summary)}
                 className="oc-outputWindow-patch"
               >
                 {item.diff
-                  ? <DiffWindowBody value={item.diff} mode={mode} />
+                  ? <DiffWindowBody value={item.diff} mode={diffMode} filePath={item.path} />
                   : <pre className="oc-outputWindowContent oc-outputWindowContent-shell">{item.summary || " "}</pre>}
               </OutputWindow>
             </section>
           ))}
         </div>
       ) : null}
-      {expanded && files.length === 0 && toolTextBody(part) ? <pre className="oc-partTerminal">{toolTextBody(part)}</pre> : null}
-      {expanded && toolDiagnostics(part).length > 0 ? <DiagnosticsList items={toolDiagnostics(part)} /> : null}
+      {files.length === 0 && toolTextBody(part) ? <pre className="oc-partTerminal">{toolTextBody(part)}</pre> : null}
+      {toolDiagnostics(part).length > 0 ? <DiagnosticsList items={toolDiagnostics(part)} /> : null}
     </section>
   )
 }
@@ -1092,39 +1075,58 @@ function DiffBlock({ value, mode = "unified" }: { value: string; mode?: "unified
   return <DiffBlockImpl value={value} mode={mode} />
 }
 
-function DiffWindowBody({ value, mode = "unified" }: { value: string; mode?: "unified" | "split" }) {
-  return <DiffBlockImpl value={value} mode={mode} windowed />
+function DiffWindowBody({ value, mode = "unified", filePath }: { value: string; mode?: "unified" | "split"; filePath?: string }) {
+  return <DiffBlockImpl value={value} mode={mode} windowed filePath={filePath} />
 }
 
-function DiffBlockImpl({ value, mode, windowed = false }: { value: string; mode: "unified" | "split"; windowed?: boolean }) {
+function DiffBlockImpl({ value, mode, windowed = false, filePath }: { value: string; mode: "unified" | "split"; windowed?: boolean; filePath?: string }) {
   if (mode === "split") {
-    return <SplitDiffBlock value={value} windowed={windowed} />
+    return <SplitDiffBlock value={value} windowed={windowed} filePath={filePath} />
   }
+  const rows = React.useMemo(() => parseUnifiedDiffRows(value), [value])
+  const language = React.useMemo(() => codeLanguage(filePath), [filePath])
   return (
     <div className={`oc-diffBlock${windowed ? " is-window" : ""}`}>
-      {value.split("\n").map((line, index) => <div key={`${index}:${line}`} className={diffLineClass(line)}>{line || " "}</div>)}
+      {rows.map((row, index) => (
+        <div key={`${index}:${row.oldLine ?? ""}:${row.newLine ?? ""}:${row.marker}:${row.text}`} className={diffRowClass(row.type)}>
+          <span className="oc-diffLineNo">{formatDiffLineNumber(row.oldLine)}</span>
+          <span className="oc-diffLineNo">{formatDiffLineNumber(row.newLine)}</span>
+          <span className="oc-diffLineMarker">{row.marker}</span>
+          <DiffCodeText text={row.text} language={language} />
+        </div>
+      ))}
     </div>
   )
 }
 
-function SplitDiffBlock({ value, windowed = false }: { value: string; windowed?: boolean }) {
+function SplitDiffBlock({ value, windowed = false, filePath }: { value: string; windowed?: boolean; filePath?: string }) {
   const rows = React.useMemo(() => splitDiffRows(value), [value])
+  const language = React.useMemo(() => codeLanguage(filePath), [filePath])
   return (
     <div className={`oc-splitDiff${windowed ? " is-window" : ""}`}>
-      <div className="oc-splitDiffHead">
-        <span>Before</span>
-        <span>After</span>
-      </div>
       <div className="oc-splitDiffBody">
         {rows.map((row, index) => (
           <React.Fragment key={`${index}:${row.left}:${row.right}`}>
-            <div className={splitDiffClass(row.leftType)}>{row.left || " "}</div>
-            <div className={splitDiffClass(row.rightType)}>{row.right || " "}</div>
+            <div className={splitDiffClass(row.leftType)}>
+              <span className="oc-diffLineNo">{formatDiffLineNumber(row.leftLine)}</span>
+              <span className="oc-diffLineMarker">{row.leftMarker}</span>
+              <DiffCodeText text={row.left} language={language} />
+            </div>
+            <div className={splitDiffClass(row.rightType)}>
+              <span className="oc-diffLineNo">{formatDiffLineNumber(row.rightLine)}</span>
+              <span className="oc-diffLineMarker">{row.rightMarker}</span>
+              <DiffCodeText text={row.right} language={language} />
+            </div>
           </React.Fragment>
         ))}
       </div>
     </div>
   )
+}
+
+function DiffCodeText({ text, language }: { text: string; language: string }) {
+  const html = React.useMemo(() => highlightCode(text || " ", language), [language, text])
+  return <span className="oc-diffLineText hljs" dangerouslySetInnerHTML={{ __html: html }} />
 }
 
 function DiagnosticsList({ items }: { items: string[] }) {
@@ -1484,7 +1486,9 @@ function toolLabel(tool: string) {
 function toolDetails(part: Extract<MessagePart, { type: "tool" }>): ToolDetails {
   const input = recordValue(part.state?.input)
   const metadata = recordValue(part.state?.metadata)
-  const title = stringValue(part.state?.title) || defaultToolTitle(part.tool, input, metadata)
+  const title = part.tool === "apply_patch"
+    ? defaultToolTitle(part.tool, input, metadata)
+    : stringValue(part.state?.title) || defaultToolTitle(part.tool, input, metadata)
   const subtitle = defaultToolSubtitle(part.tool, input, metadata)
   const args = defaultToolArgs(part.tool, input)
   return { title, subtitle, args }
@@ -1512,7 +1516,10 @@ function defaultToolTitle(tool: string, input: Record<string, unknown>, metadata
   if (tool === "glob" || tool === "grep") {
     return stringValue(input.path) || capitalize(tool)
   }
-  if (tool === "write" || tool === "edit" || tool === "apply_patch") {
+  if (tool === "apply_patch") {
+    return "Patch"
+  }
+  if (tool === "write" || tool === "edit") {
     return stringValue(input.filePath) || stringValue(input.path) || stringValue(metadata.filepath) || capitalize(tool)
   }
   if (tool === "todowrite") {
@@ -1851,17 +1858,51 @@ function OutputWindow({
   className?: string
   children: React.ReactNode
 }) {
-  const collapsible = lineCount > OUTPUT_WINDOW_COLLAPSED_LINES
   const [expanded, setExpanded] = React.useState(false)
-  const visibleLines = collapsible
-    ? (expanded ? Math.min(lineCount, OUTPUT_WINDOW_EXPANDED_LINES) : OUTPUT_WINDOW_COLLAPSED_LINES)
-    : lineCount
+  const [contentHeight, setContentHeight] = React.useState(0)
+  const toggleRef = React.useRef<HTMLButtonElement | null>(null)
+  const scrollAdjustRef = React.useRef<{ scrollNode: HTMLElement; top: number } | null>(null)
+  const contentRef = React.useRef<HTMLDivElement | null>(null)
+  const collapsedHeight = React.useMemo(() => outputWindowBodyHeight(OUTPUT_WINDOW_COLLAPSED_LINES), [])
+  const expandedHeight = React.useMemo(() => outputWindowBodyHeight(OUTPUT_WINDOW_EXPANDED_LINES), [])
+  const collapsible = contentHeight > collapsedHeight + 1
+  const scrollable = contentHeight > expandedHeight + 1
+
+  React.useLayoutEffect(() => {
+    const node = contentRef.current
+    if (!node) {
+      return
+    }
+
+    const measure = () => {
+      const next = Math.ceil(node.scrollHeight)
+      setContentHeight((current) => current === next ? current : next)
+    }
+
+    measure()
+
+    const Observer = window.ResizeObserver
+    if (!Observer) {
+      return
+    }
+
+    const observer = new Observer(() => measure())
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [children, expanded])
+
   const bodyStyle = React.useMemo<React.CSSProperties>(() => {
-    if (!collapsible || visibleLines <= 0) {
+    if (!collapsible) {
       return {}
     }
-    return { maxHeight: outputWindowBodyHeight(visibleLines) }
-  }, [collapsible, visibleLines])
+    if (!expanded) {
+      return { maxHeight: `${collapsedHeight}px` }
+    }
+    if (scrollable) {
+      return { maxHeight: `${expandedHeight}px` }
+    }
+    return {}
+  }, [collapsedHeight, collapsible, expanded, expandedHeight, scrollable])
 
   React.useEffect(() => {
     if (!collapsible && expanded) {
@@ -1869,12 +1910,23 @@ function OutputWindow({
     }
   }, [collapsible, expanded])
 
+  React.useLayoutEffect(() => {
+    const pending = scrollAdjustRef.current
+    const toggleNode = toggleRef.current
+    if (!pending || !toggleNode) {
+      return
+    }
+    const nextTop = toggleNode.getBoundingClientRect().top
+    pending.scrollNode.scrollTop += nextTop - pending.top
+    scrollAdjustRef.current = null
+  }, [expanded])
+
   const bodyClassName = [
     "oc-outputWindowBody",
     collapsible ? "is-collapsible" : "",
     collapsible && expanded ? "is-expanded" : "",
     collapsible && !expanded ? "is-collapsed" : "",
-    collapsible && expanded && lineCount > OUTPUT_WINDOW_EXPANDED_LINES ? "is-scrollable" : "",
+    collapsible && expanded && scrollable ? "is-scrollable" : "",
   ].filter(Boolean).join(" ")
 
   return (
@@ -1887,21 +1939,39 @@ function OutputWindow({
         <span className="oc-outputWindowSpinnerSlot">{running ? <ToolStatus state="running" /> : null}</span>
       </div>
       <div className={bodyClassName} style={bodyStyle}>
-        {children}
+        <div ref={contentRef} className="oc-outputWindowBodyInner">{children}</div>
       </div>
       {collapsible ? (
         <button
+          ref={toggleRef}
           type="button"
           className="oc-outputWindowToggle"
           aria-expanded={expanded}
           aria-label={expanded ? "Collapse output" : "Expand output"}
-          onClick={() => setExpanded((current) => !current)}
+          onClick={(event) => {
+            const toggleNode = event.currentTarget
+            if (expanded) {
+              const scrollNode = toggleNode.closest(".oc-transcript")
+              if (scrollNode instanceof HTMLElement) {
+                scrollAdjustRef.current = {
+                  scrollNode,
+                  top: toggleNode.getBoundingClientRect().top,
+                }
+              } else {
+                scrollAdjustRef.current = null
+              }
+            } else {
+              scrollAdjustRef.current = null
+            }
+            setExpanded((current) => !current)
+          }}
         >
           <svg className="oc-outputWindowToggleIcon" viewBox="0 0 16 16" aria-hidden="true">
             {expanded
               ? <path d="M4 10l4-4 4 4" />
               : <path d="M4 6l4 4 4-4" />}
           </svg>
+          <span className="oc-outputWindowToggleMeta">{formatLineCount(lineCount)}</span>
         </button>
       ) : null}
     </section>
@@ -1909,29 +1979,63 @@ function OutputWindow({
 }
 
 function splitDiffRows(value: string) {
-  const rows: Array<{ left: string; right: string; leftType: string; rightType: string }> = []
-  const lines = value.split("\n")
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] || ""
-    if (line.startsWith("@@") || line.startsWith("+++ ") || line.startsWith("--- ")) {
-      rows.push({ left: line, right: line, leftType: "meta", rightType: "meta" })
-      continue
-    }
-    if (line.startsWith("-")) {
-      const next = lines[index + 1] || ""
-      if (next.startsWith("+")) {
-        rows.push({ left: line, right: next, leftType: "del", rightType: "add" })
-        index += 1
+  const rows: Array<{
+    left: string
+    right: string
+    leftType: string
+    rightType: string
+    leftLine?: number
+    rightLine?: number
+    leftMarker: string
+    rightMarker: string
+  }> = []
+  const hunks = parseDiffHunks(value)
+  for (const hunk of hunks) {
+    let oldLine = hunk.oldStart
+    let newLine = hunk.newStart
+    for (let index = 0; index < hunk.lines.length; index += 1) {
+      const line = hunk.lines[index] || ""
+      if (line.startsWith("-")) {
+        const next = hunk.lines[index + 1] || ""
+        if (next.startsWith("+")) {
+          rows.push({
+            left: line.slice(1),
+            right: next.slice(1),
+            leftType: "del",
+            rightType: "add",
+            leftLine: oldLine,
+            rightLine: newLine,
+            leftMarker: "-",
+            rightMarker: "+",
+          })
+          oldLine += 1
+          newLine += 1
+          index += 1
+          continue
+        }
+        rows.push({ left: line.slice(1), right: "", leftType: "del", rightType: "empty", leftLine: oldLine, leftMarker: "-", rightMarker: "" })
+        oldLine += 1
         continue
       }
-      rows.push({ left: line, right: "", leftType: "del", rightType: "empty" })
-      continue
+      if (line.startsWith("+")) {
+        rows.push({ left: "", right: line.slice(1), leftType: "empty", rightType: "add", rightLine: newLine, leftMarker: "", rightMarker: "+" })
+        newLine += 1
+        continue
+      }
+      const text = line.startsWith(" ") ? line.slice(1) : line
+      rows.push({
+        left: text,
+        right: text,
+        leftType: "ctx",
+        rightType: "ctx",
+        leftLine: oldLine,
+        rightLine: newLine,
+        leftMarker: " ",
+        rightMarker: " ",
+      })
+      oldLine += 1
+      newLine += 1
     }
-    if (line.startsWith("+")) {
-      rows.push({ left: "", right: line, leftType: "empty", rightType: "add" })
-      continue
-    }
-    rows.push({ left: line, right: line, leftType: "ctx", rightType: "ctx" })
   }
   return rows
 }
@@ -1947,20 +2051,90 @@ function diffOutputLineCount(value: string, mode: "unified" | "split") {
   if (mode === "split") {
     return splitDiffRows(value).length
   }
-  return normalizedLineCount(value)
+  return parseUnifiedDiffRows(value).length
 }
 
 function outputWindowBodyHeight(lines: number) {
   const lineHeightPx = OUTPUT_WINDOW_FONT_SIZE_PX * OUTPUT_WINDOW_LINE_HEIGHT
-  return `${Math.round(lines * lineHeightPx + OUTPUT_WINDOW_VERTICAL_PADDING_PX)}px`
+  return Math.round(lines * lineHeightPx + OUTPUT_WINDOW_VERTICAL_PADDING_PX)
 }
 
 function splitDiffClass(type: string) {
   if (type === "add") return "oc-splitDiffLine is-add"
   if (type === "del") return "oc-splitDiffLine is-del"
-  if (type === "meta") return "oc-splitDiffLine is-meta"
   if (type === "empty") return "oc-splitDiffLine is-empty"
   return "oc-splitDiffLine"
+}
+
+function diffRowClass(type: string) {
+  if (type === "add") return "oc-diffLine is-add"
+  if (type === "del") return "oc-diffLine is-del"
+  return "oc-diffLine"
+}
+
+function parseUnifiedDiffRows(value: string) {
+  const rows: Array<{ type: string; text: string; oldLine?: number; newLine?: number; marker: string }> = []
+  const hunks = parseDiffHunks(value)
+  for (const hunk of hunks) {
+    let oldLine = hunk.oldStart
+    let newLine = hunk.newStart
+    for (const line of hunk.lines) {
+      if (line.startsWith("-")) {
+        rows.push({ type: "del", text: line.slice(1), oldLine, marker: "-" })
+        oldLine += 1
+        continue
+      }
+      if (line.startsWith("+")) {
+        rows.push({ type: "add", text: line.slice(1), newLine, marker: "+" })
+        newLine += 1
+        continue
+      }
+      const text = line.startsWith(" ") ? line.slice(1) : line
+      rows.push({ type: "ctx", text, oldLine, newLine, marker: " " })
+      oldLine += 1
+      newLine += 1
+    }
+  }
+  return rows
+}
+
+function parseDiffHunks(value: string) {
+  const lines = value.split("\n")
+  const hunks: Array<{ oldStart: number; newStart: number; lines: string[] }> = []
+  let current: { oldStart: number; newStart: number; lines: string[] } | null = null
+  for (const rawLine of lines) {
+    const line = rawLine || ""
+    if (line.startsWith("@@")) {
+      const header = parseHunkHeader(line)
+      current = { oldStart: header.oldStart, newStart: header.newStart, lines: [] }
+      hunks.push(current)
+      continue
+    }
+    if (!current) {
+      continue
+    }
+    if (line.startsWith("\\ No newline at end of file")) {
+      continue
+    }
+    current.lines.push(line)
+  }
+  return hunks
+}
+
+function parseHunkHeader(line: string) {
+  const match = /^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/.exec(line)
+  return {
+    oldStart: match ? Number.parseInt(match[1] || "0", 10) : 0,
+    newStart: match ? Number.parseInt(match[3] || "0", 10) : 0,
+  }
+}
+
+function formatDiffLineNumber(value?: number) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? String(value) : ""
+}
+
+function formatLineCount(value: number) {
+  return `${value} ${value === 1 ? "line" : "lines"}`
 }
 
 function agentColor(name: string) {
@@ -2124,19 +2298,6 @@ function highlightCode(value: string, language: string) {
     return hljs.highlight(value, { language }).value
   }
   return hljs.highlightAuto(value).value
-}
-
-function diffLineClass(line: string) {
-  if (line.startsWith("+++ ") || line.startsWith("--- ") || line.startsWith("@@")) {
-    return "oc-diffLine is-meta"
-  }
-  if (line.startsWith("+")) {
-    return "oc-diffLine is-add"
-  }
-  if (line.startsWith("-")) {
-    return "oc-diffLine is-del"
-  }
-  return "oc-diffLine"
 }
 
 function toolTodos(part: Extract<MessagePart, { type: "tool" }>) {
