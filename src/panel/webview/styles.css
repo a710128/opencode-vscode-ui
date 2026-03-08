@@ -1,15 +1,19 @@
 :root {
   color-scheme: dark;
-  --oc-bg: var(--vscode-editor-background);
-  --oc-panel: color-mix(in srgb, var(--vscode-editor-background) 90%, var(--vscode-editorWidget-background) 10%);
-  --oc-panel-strong: color-mix(in srgb, var(--vscode-editor-background) 84%, var(--vscode-editorWidget-background) 16%);
-  --oc-panel-soft: color-mix(in srgb, var(--vscode-editor-background) 94%, var(--vscode-editorWidget-background) 6%);
+  --oc-bg: #000;
+  --oc-surface-canvas: #000;
+  --oc-surface-block: #000;
+  --oc-surface-inset: #000;
+  --oc-surface-control: #000;
   --oc-border: color-mix(in srgb, var(--vscode-panel-border) 80%, transparent 20%);
   --oc-border-strong: color-mix(in srgb, var(--vscode-editor-foreground) 22%, transparent 78%);
   --oc-text: var(--vscode-editor-foreground);
   --oc-muted: var(--vscode-descriptionForeground);
+  --oc-fg-primary: var(--oc-text);
+  --oc-fg-muted: var(--oc-muted);
   --oc-accent: var(--vscode-button-background);
   --oc-accent-text: var(--vscode-button-foreground);
+  --oc-rail-user: color-mix(in srgb, var(--oc-accent) 72%, transparent 28%);
   --oc-warning: var(--vscode-editorWarning-foreground);
   --oc-error: var(--vscode-errorForeground);
   --oc-success: var(--vscode-testing-iconPassed, #4caf50);
@@ -26,8 +30,8 @@ body,
 #root {
   margin: 0;
   height: 100%;
-  background: var(--oc-bg);
-  color: var(--oc-text);
+  background: var(--oc-surface-canvas);
+  color: var(--oc-fg-primary);
 }
 
 body,
@@ -52,9 +56,7 @@ button {
   height: 100%;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
-  background:
-    linear-gradient(to bottom, color-mix(in srgb, var(--oc-panel-soft) 80%, transparent 20%), transparent 80px),
-    var(--oc-bg);
+  background: var(--oc-surface-canvas);
 }
 
 .oc-footer {
@@ -69,7 +71,7 @@ button {
 .oc-emptyState,
 .oc-part {
   border: 1px solid var(--oc-border);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--oc-panel) 90%, transparent 10%), var(--oc-panel-soft));
+  background: var(--oc-surface-block);
 }
 
 .oc-kicker,
@@ -80,7 +82,7 @@ button {
 .oc-emptyText,
 .oc-errorText,
 .oc-partEmpty {
-  color: var(--oc-muted);
+  color: var(--oc-fg-muted);
 }
 
 .oc-kicker,
@@ -113,17 +115,16 @@ button {
 }
 
 .oc-transcriptInner {
-  width: min(100%, 1100px);
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .oc-log,
 .oc-footerInner,
 .oc-questionList,
 .oc-todoList,
-.oc-parts,
-.oc-turnBody,
-.oc-assistantFlow {
+.oc-parts {
   display: grid;
   gap: 12px;
 }
@@ -135,66 +136,58 @@ button {
   gap: 8px;
 }
 
-.oc-turn {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-}
-
-.oc-rail {
-  width: 2px;
-  min-height: 100%;
-  background: transparent;
-  box-shadow: none;
-  justify-self: center;
-}
-
-.oc-turnBody {
-  display: grid;
-  gap: 16px;
-}
-
-.oc-turnUser,
-.oc-turnAssistant {
+.oc-turnUser {
   display: grid;
   gap: 8px;
+  width: 100%;
+  margin: 0;
+  justify-self: stretch;
 }
 
 .oc-turnUser {
   position: relative;
   padding: 10px 12px;
   border: 0;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--oc-panel-strong) 82%, transparent 18%), color-mix(in srgb, var(--oc-panel-soft) 94%, transparent 6%));
+  background: var(--oc-surface-block);
 }
 
 .oc-turnUser::before {
   content: "";
   position: absolute;
-  left: -8px;
+  left: 0;
   top: 0;
   bottom: 0;
   width: 3px;
-  background: color-mix(in srgb, var(--oc-accent) 70%, transparent 30%);
+  background: var(--oc-rail-user);
+  border-radius: 1px;
 }
 
-.oc-turnAssistant {
-  padding-left: 0;
-}
-
-.oc-entryHeader-assistant {
-  padding: 0 12px;
-}
-
-.oc-assistantFlow {
-  gap: 6px;
+.oc-turnUser .oc-entryRole {
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .oc-turnMeta {
-  padding: 0 12px;
-  color: var(--oc-muted);
+  padding: 0 12px 10px;
+  background: var(--oc-surface-block);
+  color: var(--oc-fg-muted);
   font-size: 11px;
   line-height: 1.5;
   font-family: var(--oc-ui);
+}
+
+.oc-turnUser,
+.oc-turnMeta,
+.oc-toolRowWrap,
+.oc-dividerPart,
+.oc-part,
+.oc-dock,
+.oc-composer,
+.oc-questionCard,
+.oc-emptyState {
+  width: 100%;
+  margin: 0;
+  justify-self: stretch;
 }
 
 .oc-attachmentRow {
@@ -218,7 +211,10 @@ button {
 .oc-toolRowWrap {
   display: grid;
   gap: 4px;
-  padding: 0 12px;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--oc-surface-block);
 }
 
 .oc-toolRowBtn {
@@ -232,12 +228,12 @@ button {
 
 .oc-toolRowBtn:hover {
   border-color: color-mix(in srgb, var(--oc-accent) 38%, transparent 62%);
-  background: color-mix(in srgb, var(--oc-panel-strong) 34%, transparent 66%);
+  background: transparent;
 }
 
 .oc-toolRow {
   justify-content: space-between;
-  padding: 1px 0;
+  padding: 0;
 }
 
 .oc-taskRowHeader {
@@ -299,7 +295,7 @@ button {
 .oc-toolPanelTitle,
 .oc-fileToolPath {
   font-size: 12px;
-  color: var(--oc-text);
+  color: var(--oc-fg-primary);
 }
 
 .oc-toolRowMeta,
@@ -311,13 +307,13 @@ button {
   display: grid;
   gap: 6px;
   border-color: color-mix(in srgb, var(--oc-border) 76%, transparent 24%);
-  background: color-mix(in srgb, var(--oc-panel-soft) 92%, transparent 8%);
+  background: var(--oc-surface-block);
 }
 
 .oc-toolPanel.is-completed,
 .oc-toolRowWrap.is-completed {
   border-color: color-mix(in srgb, var(--oc-border) 54%, transparent 46%);
-  background: color-mix(in srgb, var(--oc-panel-soft) 70%, transparent 30%);
+  background: var(--oc-surface-block);
 }
 
 .oc-toolPanel.is-active,
@@ -335,7 +331,7 @@ button {
 }
 
 .oc-toolRowSummary {
-  color: var(--oc-muted);
+  color: var(--oc-fg-muted);
   font-size: 11px;
   line-height: 1.5;
 }
@@ -347,7 +343,7 @@ button {
 }
 
 .oc-toolRowExtra {
-  color: var(--oc-muted);
+  color: var(--oc-fg-muted);
   font-size: 11px;
   line-height: 1.45;
 }
@@ -382,7 +378,7 @@ button {
   gap: 2px;
   padding: 8px 10px;
   border: 1px solid color-mix(in srgb, var(--oc-border) 70%, transparent 30%);
-  background: color-mix(in srgb, var(--oc-panel-soft) 78%, transparent 22%);
+  background: var(--oc-surface-inset);
 }
 
 .oc-patchItem {
@@ -390,7 +386,7 @@ button {
   gap: 8px;
   padding: 8px 10px;
   border: 1px solid color-mix(in srgb, var(--oc-border) 70%, transparent 30%);
-  background: color-mix(in srgb, var(--oc-panel-soft) 78%, transparent 22%);
+  background: var(--oc-surface-inset);
 }
 
 .oc-patchHeader,
@@ -404,7 +400,7 @@ button {
 
 .oc-fileToolSummary,
 .oc-toolAnswerItem {
-  color: var(--oc-muted);
+  color: var(--oc-fg-muted);
   font-size: 11px;
   line-height: 1.5;
 }
@@ -425,8 +421,8 @@ button {
 .oc-diagnosticItem {
   padding: 6px 8px;
   border-left: 2px solid color-mix(in srgb, var(--oc-warning) 64%, transparent 36%);
-  background: color-mix(in srgb, var(--oc-panel-strong) 72%, transparent 28%);
-  color: var(--oc-muted);
+  background: var(--oc-surface-inset);
+  color: var(--oc-fg-muted);
   font-size: 11px;
   line-height: 1.5;
 }
@@ -464,7 +460,7 @@ button {
 }
 
 .oc-contextRow {
-  color: var(--oc-muted);
+  color: var(--oc-fg-muted);
   font-size: 11px;
   line-height: 1.5;
 }
@@ -483,7 +479,7 @@ button {
 
 .oc-composer {
   border-color: color-mix(in srgb, var(--oc-border-strong) 44%, transparent 56%);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--oc-panel-soft) 82%, transparent 18%), color-mix(in srgb, var(--oc-panel-soft) 94%, transparent 6%));
+  background: var(--oc-surface-block);
 }
 
 .oc-composerHeader {
@@ -491,9 +487,9 @@ button {
 }
 
 .oc-part-text {
-  padding: 0 12px;
+  padding: 10px 12px;
   border: 0;
-  background: transparent;
+  background: var(--oc-surface-block);
 }
 
 .oc-partText,
@@ -515,21 +511,21 @@ button {
 }
 
 .oc-part-inline {
-  padding: 0 12px;
+  padding: 10px 12px;
   border: 0;
-  background: transparent;
+  background: var(--oc-surface-block);
 }
 
 .oc-part-compact {
-  padding: 0;
+  padding: 10px 12px;
   border: 0;
-  background: transparent;
+  background: var(--oc-surface-block);
 }
 
 .oc-part-reasoning {
-  padding: 2px 0 2px 12px;
+  padding: 8px 12px;
   border: 0;
-  background: transparent;
+  background: var(--oc-surface-block);
 }
 
 @keyframes oc-spin {
@@ -551,12 +547,12 @@ button {
 .oc-part-compaction,
 .oc-part-step-start,
 .oc-part-step-finish {
-  background: color-mix(in srgb, var(--oc-panel-soft) 90%, transparent 10%);
+  background: var(--oc-surface-block);
 }
 
 .oc-partTerminal {
   padding: 10px 12px;
-  background: color-mix(in srgb, black 45%, var(--oc-bg) 55%);
+  background: var(--oc-surface-inset);
   border-left: 2px solid color-mix(in srgb, var(--oc-accent) 72%, transparent 28%);
 }
 
@@ -565,7 +561,7 @@ button {
   overflow-x: auto;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--oc-border-strong) 72%, transparent 28%);
-  background: color-mix(in srgb, black 50%, var(--oc-bg) 50%);
+  background: var(--oc-surface-inset);
   border-left: 2px solid color-mix(in srgb, var(--oc-accent) 72%, transparent 28%);
 }
 
@@ -575,7 +571,7 @@ button {
 
 .oc-codeBlock .hljs {
   background: transparent;
-  color: var(--oc-text);
+  color: var(--oc-fg-primary);
 }
 
 .oc-codeBlock .hljs-comment,
@@ -634,14 +630,14 @@ button {
 }
 
 .oc-diffLine.is-meta {
-  color: var(--oc-muted);
+  color: var(--oc-fg-muted);
 }
 
 .oc-splitDiff {
   display: grid;
   gap: 0;
   border: 1px solid color-mix(in srgb, var(--oc-border-strong) 72%, transparent 28%);
-  background: color-mix(in srgb, black 50%, var(--oc-bg) 50%);
+  background: var(--oc-surface-inset);
 }
 
 .oc-splitDiffHead,
@@ -652,7 +648,7 @@ button {
 
 .oc-splitDiffHead {
   border-bottom: 1px solid color-mix(in srgb, var(--oc-border-strong) 58%, transparent 42%);
-  color: var(--oc-muted);
+  color: var(--oc-fg-muted);
   font-size: 11px;
 }
 
@@ -685,22 +681,22 @@ button {
 }
 
 .oc-splitDiffLine.is-meta {
-  color: var(--oc-muted);
+  color: var(--oc-fg-muted);
 }
 
 .oc-splitDiffLine.is-empty {
-  background: color-mix(in srgb, var(--oc-panel-soft) 36%, transparent 64%);
+  background: var(--oc-surface-inset);
 }
 
 .oc-markdown {
   font-family: var(--oc-ui);
   font-size: 12px;
   line-height: 1.65;
-  color: var(--oc-text);
+  color: var(--oc-fg-primary);
 }
 
 .oc-markdown.is-subtle {
-  color: color-mix(in srgb, var(--oc-muted) 88%, var(--oc-text) 12%);
+  color: color-mix(in srgb, var(--oc-fg-muted) 88%, var(--oc-fg-primary) 12%);
 }
 
 .oc-markdown.is-subtle .hljs,
@@ -717,12 +713,12 @@ button {
 }
 
 .oc-markdown.is-subtle blockquote {
-  background: color-mix(in srgb, var(--oc-panel-soft) 42%, transparent 58%);
+  background: var(--oc-surface-inset);
   border-left-color: color-mix(in srgb, var(--oc-border-strong) 48%, transparent 52%);
 }
 
 .oc-markdown.is-subtle pre {
-  background: color-mix(in srgb, black 28%, var(--oc-bg) 72%);
+  background: var(--oc-surface-inset);
   border-color: color-mix(in srgb, var(--oc-border-strong) 45%, transparent 55%);
   border-left-color: color-mix(in srgb, var(--oc-border-strong) 52%, transparent 48%);
 }
@@ -762,7 +758,7 @@ button {
 .oc-markdown h2::before,
 .oc-markdown h3::before {
   content: "# ";
-  color: var(--oc-muted);
+  color: var(--oc-fg-muted);
 }
 
 .oc-markdown ul,
@@ -777,8 +773,8 @@ button {
 .oc-markdown blockquote {
   padding: 8px 12px;
   border-left: 2px solid var(--oc-border-strong);
-  background: color-mix(in srgb, var(--oc-panel-strong) 72%, transparent 28%);
-  color: var(--oc-muted);
+  background: var(--oc-surface-inset);
+  color: var(--oc-fg-muted);
 }
 
 .oc-markdown a {
@@ -793,15 +789,15 @@ button {
 .oc-inlineCode {
   padding: 1px 5px;
   border: 1px solid var(--oc-border-strong);
-  background: color-mix(in srgb, var(--oc-panel-soft) 72%, transparent 28%);
-  color: color-mix(in srgb, var(--oc-text) 90%, var(--vscode-terminal-ansiCyan) 10%);
+  background: var(--oc-surface-inset);
+  color: color-mix(in srgb, var(--oc-fg-primary) 90%, var(--vscode-terminal-ansiCyan) 10%);
 }
 
 .oc-markdown pre {
   overflow-x: auto;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--oc-border-strong) 58%, transparent 42%);
-  background: color-mix(in srgb, black 34%, var(--oc-bg) 66%);
+  background: var(--oc-surface-inset);
   border-left: 1px solid color-mix(in srgb, var(--oc-border-strong) 62%, transparent 38%);
 }
 
@@ -824,8 +820,8 @@ button {
 }
 
 .oc-markdown th {
-  color: var(--oc-muted);
-  background: color-mix(in srgb, var(--oc-panel-strong) 80%, transparent 20%);
+  color: var(--oc-fg-muted);
+  background: var(--oc-surface-inset);
 }
 
 .oc-markdown hr {
@@ -836,7 +832,7 @@ button {
 .oc-markdown .hljs {
   display: block;
   background: transparent;
-  color: var(--oc-text);
+  color: var(--oc-fg-primary);
 }
 
 .oc-markdown .hljs-comment,
@@ -892,8 +888,11 @@ button {
   grid-template-columns: minmax(16px, 1fr) auto minmax(16px, 1fr);
   align-items: center;
   gap: 8px;
-  padding: 0 12px;
-  color: var(--oc-muted);
+  width: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--oc-surface-block);
+  color: var(--oc-fg-muted);
   font-size: 11px;
   line-height: 1.4;
 }
@@ -918,7 +917,7 @@ button {
 
 .oc-footer {
   border-top: 1px solid color-mix(in srgb, var(--oc-border-strong) 52%, var(--oc-border) 48%);
-  background: color-mix(in srgb, var(--oc-bg) 76%, black 24%);
+  background: var(--oc-surface-canvas);
 }
 
 .oc-dock-warning {
@@ -969,14 +968,14 @@ button {
 .oc-pill,
 .oc-chip {
   border: 1px solid var(--oc-border-strong);
-  background: color-mix(in srgb, var(--oc-panel-strong) 84%, transparent 16%);
-  color: var(--oc-text);
+  background: var(--oc-surface-control);
+  color: var(--oc-fg-primary);
   padding: 5px 9px;
   font-size: 11px;
 }
 
 .oc-pill-file {
-  color: var(--oc-muted);
+  color: var(--oc-fg-muted);
 }
 
 .oc-chip {
@@ -992,8 +991,8 @@ button {
 
 .oc-btn {
   border: 1px solid var(--oc-border-strong);
-  background: color-mix(in srgb, var(--oc-panel-strong) 84%, transparent 16%);
-  color: var(--oc-text);
+  background: var(--oc-surface-control);
+  color: var(--oc-fg-primary);
   padding: 8px 12px;
   cursor: pointer;
 }
@@ -1028,7 +1027,7 @@ button {
 .oc-toggleBtn {
   border: 1px solid var(--oc-border-strong);
   background: transparent;
-  color: var(--oc-muted);
+  color: var(--oc-fg-muted);
   padding: 4px 8px;
   font-size: 11px;
   text-transform: uppercase;
@@ -1037,8 +1036,8 @@ button {
 }
 
 .oc-toggleBtn.is-active {
-  color: var(--oc-text);
-  background: color-mix(in srgb, var(--oc-panel-strong) 84%, transparent 16%);
+  color: var(--oc-fg-primary);
+  background: var(--oc-surface-control);
 }
 
 .oc-btn:disabled,
@@ -1053,8 +1052,8 @@ button {
   width: 100%;
   resize: vertical;
   border: 1px solid var(--oc-border-strong);
-  background: color-mix(in srgb, black 24%, var(--oc-bg) 76%);
-  color: var(--oc-text);
+  background: var(--oc-surface-control);
+  color: var(--oc-fg-primary);
   padding: 10px 12px;
 }
 
@@ -1082,11 +1081,6 @@ button {
   .oc-transcript {
     padding-left: 0;
     padding-right: 0;
-  }
-
-  .oc-turn {
-    grid-template-columns: 6px minmax(0, 1fr);
-    gap: 10px;
   }
 
   .oc-composerActions {

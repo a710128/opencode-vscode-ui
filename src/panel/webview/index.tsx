@@ -374,7 +374,8 @@ function Timeline({ state }: { state: AppState }) {
     return <EmptyState title="Start this session" text="Send a message below. Pending permission and question requests will appear in the lower dock." />
   }
 
-  const turns = buildTimelineTurns(messages)
+  const blocks = buildTimelineBlocks(messages, { showThinking, showInternals })
+  const activeToolID = latestActiveToolId(blocks.flatMap((block) => block.kind === "assistant-part" ? [block.part] : []))
 
   return (
     <TranscriptVisibilityContext.Provider value={{ showThinking, showInternals }}>
@@ -387,17 +388,16 @@ function Timeline({ state }: { state: AppState }) {
             Internals {showInternals ? "on" : "off"}
           </button>
         </div>
-        {turns.map((turn) => <TurnView key={turn.id} turn={turn} />)}
+        {blocks.map((block) => <TimelineBlockView key={block.key} block={block} activeToolID={activeToolID} />)}
       </div>
     </TranscriptVisibilityContext.Provider>
   )
 }
 
-type TimelineTurn = {
-  id: string
-  user?: SessionMessage
-  assistants: SessionMessage[]
-}
+type TimelineBlock =
+  | { kind: "user-message"; key: string; message: SessionMessage }
+  | { kind: "assistant-part"; key: string; part: MessagePart }
+  | { kind: "assistant-meta"; key: string; text: string }
 
 type ToolDisplayVariant = "row" | "panel" | "links" | "files" | "todos" | "question"
 
@@ -412,49 +412,35 @@ type ToolFileSummary = {
   summary: string
 }
 
-function TurnView({ turn }: { turn: TimelineTurn }) {
-  const userText = turn.user ? primaryUserText(turn.user) : undefined
-  const userFiles = turn.user ? userAttachments(turn.user) : []
-  const [showThinking, showInternals] = useTranscriptVisibility()
-  const assistantParts = flattenAssistantParts(turn.assistants, { showThinking, showInternals })
-  const assistantInfo = turn.assistants[0]?.info
-  const assistantFooter = assistantSummary(turn.assistants)
-  const activeToolID = latestActiveToolId(assistantParts)
+function TimelineBlockView({ block, activeToolID }: { block: TimelineBlock; activeToolID: string }) {
+  if (block.kind === "user-message") {
+    const userText = primaryUserText(block.message)
+    const userFiles = userAttachments(block.message)
+    return (
+      <section className="oc-turnUser">
+        <div className="oc-entryHeader">
+          <div className="oc-entryRole">You</div>
+          <div className="oc-entryTime">{formatTime(block.message.info.time?.created)}</div>
+        </div>
+        {userText ? <MarkdownBlock content={userText.text || ""} /> : <div className="oc-partEmpty">No visible prompt text.</div>}
+        {userFiles.length > 0 ? (
+          <div className="oc-attachmentRow">
+            {userFiles.map((part) => (
+              <span key={part.id} className="oc-pill oc-pill-file">{part.filename || fileLabel(part.url)}</span>
+            ))}
+          </div>
+        ) : null}
+      </section>
+    )
+  }
 
+  if (block.kind === "assistant-meta") {
+    return <section className="oc-turnMeta">{block.text}</section>
+  }
+
+  const part = block.part
   return (
-    <article className="oc-turn">
-      <div className="oc-turnBody">
-        {turn.user ? (
-          <section className="oc-turnUser">
-            <div className="oc-entryHeader">
-              <div className="oc-entryRole">You</div>
-              <div className="oc-entryTime">{formatTime(turn.user.info.time?.created)}</div>
-            </div>
-            {userText ? <MarkdownBlock content={userText.text || ""} /> : <div className="oc-partEmpty">No visible prompt text.</div>}
-            {userFiles.length > 0 ? (
-              <div className="oc-attachmentRow">
-                {userFiles.map((part) => (
-                  <span key={part.id} className="oc-pill oc-pill-file">{part.filename || fileLabel(part.url)}</span>
-                ))}
-              </div>
-            ) : null}
-          </section>
-        ) : null}
-
-        {assistantParts.length > 0 ? (
-          <section className="oc-turnAssistant">
-            <div className="oc-entryHeader oc-entryHeader-assistant">
-              <div className="oc-entryRole">{assistantInfo?.agent || "OpenCode"}</div>
-              <div className="oc-entryTime">{formatTime(assistantInfo?.time?.created)}</div>
-            </div>
-            <div className="oc-assistantFlow">
-              {assistantParts.map((part) => <PartView key={part.id} part={part} active={part.type === "tool" && part.id === activeToolID} />)}
-            </div>
-            {assistantFooter ? <div className="oc-turnMeta">{assistantFooter}</div> : null}
-          </section>
-        ) : null}
-      </div>
-    </article>
+    <PartView part={part} active={part.type === "tool" && part.id === activeToolID} />
   )
 }
 
@@ -464,11 +450,6 @@ const TranscriptVisibilityContext = React.createContext({
 })
 
 const WorkspaceDirContext = React.createContext("")
-
-function useTranscriptVisibility() {
-  const visibility = React.useContext(TranscriptVisibilityContext)
-  return [visibility.showThinking, visibility.showInternals] as const
-}
 
 function useWorkspaceDir() {
   return React.useContext(WorkspaceDirContext)
@@ -1213,33 +1194,39 @@ function sessionTitle(bootstrap: SessionBootstrap) {
   return bootstrap.session?.title || bootstrap.sessionRef.sessionId?.slice(0, 8) || "session"
 }
 
-function buildTimelineTurns(messages: SessionMessage[]) {
-  const turns: TimelineTurn[] = []
-  let current: TimelineTurn | undefined
+function buildTimelineBlocks(messages: SessionMessage[], options: { showThinking: boolean; showInternals: boolean }) {
+  const blocks: TimelineBlock[] = []
 
   for (const message of messages) {
     if (message.info.role === "user") {
-      current = {
-        id: message.info.id,
-        user: message,
-        assistants: [],
-      }
-      turns.push(current)
+      blocks.push({
+        kind: "user-message",
+        key: `user:${message.info.id}`,
+        message,
+      })
       continue
     }
 
-    if (!current) {
-      current = {
-        id: `assistant-${message.info.id}`,
-        assistants: [],
-      }
-      turns.push(current)
+    const parts = message.parts.filter((part) => visibleAssistantPart(part, options))
+    for (const part of parts) {
+      blocks.push({
+        kind: "assistant-part",
+        key: `part:${part.id}`,
+        part,
+      })
     }
 
-    current.assistants.push(message)
+    const meta = assistantMessageMeta(message)
+    if (meta) {
+      blocks.push({
+        kind: "assistant-meta",
+        key: `meta:${message.info.id}`,
+        text: meta,
+      })
+    }
   }
 
-  return turns
+  return blocks
 }
 
 function primaryUserText(message: SessionMessage) {
@@ -1248,10 +1235,6 @@ function primaryUserText(message: SessionMessage) {
 
 function userAttachments(message: SessionMessage) {
   return message.parts.filter((part): part is FilePart => part.type === "file")
-}
-
-function flattenAssistantParts(messages: SessionMessage[], options: { showThinking: boolean; showInternals: boolean }) {
-  return messages.flatMap((message) => message.parts.filter((part) => visibleAssistantPart(part, options)))
 }
 
 function latestActiveToolId(parts: MessagePart[]) {
@@ -1298,6 +1281,25 @@ function assistantSummary(messages: SessionMessage[]) {
     if (reason) {
       parts.push(reason)
     }
+  }
+
+  return parts.join(" · ")
+}
+
+function assistantMessageMeta(message: SessionMessage) {
+  const parts: string[] = []
+  const agent = message.info.agent?.trim()
+  const created = formatTime(message.info.time?.created)
+  const summary = assistantSummary([message])
+
+  if (agent) {
+    parts.push(agent)
+  }
+  if (created) {
+    parts.push(created)
+  }
+  if (summary) {
+    parts.push(summary)
   }
 
   return parts.join(" · ")
