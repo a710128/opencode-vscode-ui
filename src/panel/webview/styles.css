@@ -35,7 +35,7 @@
   --oc-outputWindow-toggle-bg: color-mix(in srgb, var(--oc-accent) 60%, var(--oc-surface-block) 40%);
   --oc-outputWindow-toggle-hover: color-mix(in srgb, var(--oc-accent) 50%, var(--oc-surface-block) 50%);
   --oc-md-text: var(--oc-fg-primary);
-  --oc-md-heading: var(--oc-fg-primary);
+  --oc-md-heading: rgb(255, 163, 28);
   --oc-md-link: var(--vscode-terminal-ansiBlue);
   --oc-md-link-text: var(--vscode-terminal-ansiCyan);
   --oc-md-code: var(--vscode-terminal-ansiGreen);
@@ -394,7 +394,11 @@ button {
   stroke-linecap: round;
 }
 
-.oc-toolRowTitle,
+.oc-toolRowTitle {
+  font-size: var(--oc-font-size);
+  color: var(--oc-fg-muted);
+}
+
 .oc-toolPanelTitle,
 .oc-fileToolPath {
   font-size: var(--oc-font-size);
