@@ -813,6 +813,129 @@ button {
   padding: 10px 12px;
 }
 
+.oc-question,
+.oc-questionList,
+.oc-questionItems,
+.oc-questionOptions {
+  display: grid;
+  gap: 12px;
+}
+
+.oc-questionProgress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.oc-questionProgressItem {
+  width: 16px;
+  height: 2px;
+  padding: 0;
+  border: 0;
+  background: color-mix(in srgb, var(--oc-fg-muted) 42%, transparent 58%);
+  cursor: pointer;
+}
+
+.oc-questionProgressItem.is-done {
+  background: color-mix(in srgb, var(--oc-accent) 68%, transparent 32%);
+}
+
+.oc-questionProgressItem.is-active {
+  background: var(--oc-fg-primary);
+}
+
+.oc-questionCard {
+  display: grid;
+  gap: 8px;
+  border-color: color-mix(in srgb, var(--oc-border-strong) 62%, transparent 38%);
+}
+
+.oc-questionItemHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.oc-questionState,
+.oc-questionHint,
+.oc-questionAnswerEmpty {
+  color: var(--oc-fg-muted);
+  font-size: var(--oc-font-size-sm);
+  line-height: 1.5;
+}
+
+.oc-questionPrompt {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.oc-questionOption {
+  appearance: none;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--oc-border-strong) 72%, transparent 28%);
+  background: color-mix(in srgb, var(--oc-surface-control) 84%, var(--oc-surface-block) 16%);
+  color: var(--oc-fg-primary);
+  text-align: left;
+}
+
+button.oc-questionOption,
+label.oc-questionOption {
+  cursor: pointer;
+}
+
+button.oc-questionOption:hover,
+label.oc-questionOption:hover {
+  background: color-mix(in srgb, var(--oc-surface-control) 58%, var(--oc-surface-block) 42%);
+}
+
+.oc-questionOption.is-selected {
+  border-color: color-mix(in srgb, var(--oc-accent) 62%, transparent 38%);
+  background: color-mix(in srgb, var(--oc-accent) 12%, var(--oc-surface-control) 88%);
+}
+
+.oc-question-answered .oc-questionOption:not(.is-selected) {
+  opacity: 0.72;
+}
+
+.oc-questionMark {
+  color: var(--oc-warning);
+  font-family: var(--oc-mono);
+  font-size: var(--oc-font-size-sm);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.oc-questionOptionBody {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.oc-questionOptionLabel {
+  color: var(--oc-fg-primary);
+  line-height: 1.5;
+}
+
+.oc-questionOptionDescription,
+.oc-questionAnswerText {
+  color: var(--oc-fg-muted);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.oc-questionInput {
+  margin-top: 6px;
+  min-height: 54px;
+  resize: vertical;
+}
+
 .oc-composer {
   border-color: color-mix(in srgb, var(--oc-border-strong) 44%, transparent 56%);
   background: var(--oc-surface-block);

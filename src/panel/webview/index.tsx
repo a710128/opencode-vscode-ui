@@ -3,7 +3,7 @@ import hljs from "highlight.js"
 import MarkdownIt from "markdown-it"
 import { createRoot } from "react-dom/client"
 import type { HostMessage, SessionBootstrap, WebviewMessage } from "../../bridge/types"
-import type { FileDiff, FilePart, MessageInfo, MessagePart, PermissionRequest, QuestionRequest, SessionInfo, SessionMessage, SessionStatus, TextPart, Todo } from "../../core/sdk"
+import type { FileDiff, FilePart, MessageInfo, MessagePart, PermissionRequest, QuestionInfo, QuestionRequest, SessionInfo, SessionMessage, SessionStatus, TextPart, Todo } from "../../core/sdk"
 import "./styles.css"
 
 declare global {
@@ -313,6 +313,10 @@ function App() {
                           ? (next.includes(label) ? next.filter((item) => item !== label) : [...next, label])
                           : [label],
                       },
+                      custom: multiple ? current.form.custom : {
+                        ...current.form.custom,
+                        [key]: "",
+                      },
                     },
                   }
                 })
@@ -323,6 +327,10 @@ function App() {
                   ...current,
                   form: {
                     ...current.form,
+                    selected: firstQuestion.questions[index]?.multiple ? current.form.selected : {
+                      ...current.form.selected,
+                      [key]: value.trim() ? [] : (current.form.selected[key] ?? []),
+                    },
                     custom: {
                       ...current.form.custom,
                       [key]: value,
@@ -590,6 +598,27 @@ function QuestionDock(props: {
   onSubmit: () => void
 }) {
   const { request, form, onCustom, onOption, onReject, onSubmit } = props
+  const [tab, setTab] = React.useState(0)
+  const total = request.questions.length
+  const last = tab >= total - 1
+
+  React.useEffect(() => {
+    setTab(0)
+  }, [request.id])
+
+  const next = () => {
+    if (last) {
+      onSubmit()
+      return
+    }
+    setTab((current) => Math.min(total - 1, current + 1))
+  }
+
+  const item = request.questions[tab]
+  if (!item) {
+    return null
+  }
+
   return (
     <section className="oc-dock oc-dock-warning">
       <div className="oc-dockHeader">
@@ -597,46 +626,171 @@ function QuestionDock(props: {
         <span className="oc-dockTitle">Answer required</span>
       </div>
       <div className="oc-dockText">OpenCode needs your answer before it can continue.</div>
+      <QuestionBlock
+        request={request}
+        mode="active"
+        form={form}
+        tab={tab}
+        onTab={setTab}
+        onOption={onOption}
+        onCustom={onCustom}
+      />
+      <div className="oc-actionRow">
+        <button type="button" className="oc-btn" onClick={onReject}>Reject</button>
+        <div className="oc-actionRow">
+          {tab > 0 ? <button type="button" className="oc-btn" onClick={() => setTab((current) => Math.max(0, current - 1))}>Back</button> : null}
+          <button type="button" className="oc-btn oc-btn-primary" onClick={next}>{last ? "Submit answers" : "Next question"}</button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function QuestionBlock(props: {
+  request: Pick<QuestionRequest, "id" | "questions">
+  mode: "active" | "answered"
+  form?: FormState
+  tab?: number
+  onTab?: (index: number) => void
+  onOption?: (index: number, label: string, multiple: boolean) => void
+  onCustom?: (index: number, value: string) => void
+  answers?: string[][]
+}) {
+  const { request, mode, form, tab = 0, onTab, onOption, onCustom, answers = [] } = props
+  const items = mode === "active"
+    ? request.questions.filter((_item, index) => index === tab)
+    : request.questions
+
+  return (
+    <div className={`oc-question oc-question-${mode}`}>
+      {mode === "active" && request.questions.length > 1 ? (
+        <div className="oc-questionProgress" role="tablist" aria-label="Question progress">
+          {request.questions.map((_item, index) => {
+            const done = questionAnswers(request, index, form, answers).length > 0
+            const active = index === tab
+            return (
+              <button
+                key={`progress:${index}`}
+                type="button"
+                className={`oc-questionProgressItem${active ? " is-active" : ""}${done ? " is-done" : ""}`}
+                onClick={() => onTab?.(index)}
+                aria-label={`Question ${index + 1}`}
+              />
+            )
+          })}
+        </div>
+      ) : null}
       <div className="oc-questionList">
-        {request.questions.map((item, index) => {
-          const key = answerKey(request.id, index)
-          const selected = form.selected[key] ?? []
-          const custom = form.custom[key] ?? ""
+        {items.map((item) => {
+          const index = request.questions.indexOf(item)
+          const current = questionAnswers(request, index, form, answers)
+          const known = new Set(item.options.map((option) => option.label))
+          const customAnswers = current.filter((answer) => !known.has(answer))
           return (
-            <section key={key} className="oc-questionCard">
-              <div className="oc-inlineValue">{item.header || "Question"}</div>
-              <div className="oc-dockText">{item.question || ""}</div>
-              <div className="oc-pillRow">
-                {item.options.map((option) => (
-                  <button
-                    key={option.label}
-                    type="button"
-                    className={`oc-chip ${selected.includes(option.label) ? "is-active" : ""}`}
-                    onClick={() => onOption(index, option.label, !!item.multiple)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              {item.custom === false ? null : (
-                <textarea
-                  className="oc-answerInput"
-                  value={custom}
-                  onChange={(event) => {
-                    const value = event.currentTarget.value
-                    onCustom(index, value)
-                  }}
-                  placeholder="Optional custom answer"
-                />
-              )}
-            </section>
+            <QuestionItem
+              key={answerKey(request.id, index)}
+              index={index}
+              item={item}
+              mode={mode}
+              selected={current}
+              custom={form ? form.custom[answerKey(request.id, index)] ?? "" : customAnswers.join("\n")}
+              onOption={onOption}
+              onCustom={onCustom}
+            />
           )
         })}
       </div>
-      <div className="oc-actionRow">
-        <button type="button" className="oc-btn" onClick={onReject}>Reject</button>
-        <button type="button" className="oc-btn oc-btn-primary" onClick={onSubmit}>Submit answers</button>
+    </div>
+  )
+}
+
+function QuestionItem(props: {
+  index: number
+  item: QuestionInfo
+  mode: "active" | "answered"
+  selected: string[]
+  custom: string
+  onOption?: (index: number, label: string, multiple: boolean) => void
+  onCustom?: (index: number, value: string) => void
+}) {
+  const { index, item, mode, selected, custom, onOption, onCustom } = props
+  const multiple = !!item.multiple
+  const marker = (picked: boolean) => {
+    if (multiple) {
+      return picked ? "[x]" : "[ ]"
+    }
+    return picked ? "(*)" : "( )"
+  }
+
+  const known = new Set(item.options.map((option) => option.label))
+  const customAnswers = selected.filter((answer) => !known.has(answer))
+  const customValue = mode === "active" ? custom : customAnswers.join("\n")
+  const customPicked = customAnswers.length > 0 || (mode === "active" && !!custom.trim())
+
+  return (
+    <section className="oc-questionCard">
+      <div className="oc-questionItemHead">
+        <div className="oc-inlineValue">{item.header || "Question"}</div>
+        {mode === "answered" ? <span className="oc-questionState">{selected.length > 0 ? "answered" : "no answer"}</span> : null}
       </div>
+      <div className="oc-questionPrompt">{item.question || ""}</div>
+      {mode === "active" ? <div className="oc-questionHint">{multiple ? "Choose one or more answers." : "Choose one answer."}</div> : null}
+      <div className="oc-questionOptions">
+        {item.options.map((option) => {
+          const picked = selected.includes(option.label)
+          const body = (
+            <>
+              <span className="oc-questionMark" aria-hidden="true">{marker(picked)}</span>
+              <span className="oc-questionOptionBody">
+                <span className="oc-questionOptionLabel">{option.label}</span>
+                {option.description ? <span className="oc-questionOptionDescription">{option.description}</span> : null}
+              </span>
+            </>
+          )
+          if (mode === "answered") {
+            return <div key={option.label} className={`oc-questionOption${picked ? " is-selected" : ""}`}>{body}</div>
+          }
+          return (
+            <button
+              key={option.label}
+              type="button"
+              className={`oc-questionOption${picked ? " is-selected" : ""}`}
+              onClick={() => onOption?.(index, option.label, multiple)}
+            >
+              {body}
+            </button>
+          )
+        })}
+        {item.custom === false ? null : mode === "answered" ? (
+          customValue.trim() ? (
+            <div className="oc-questionOption oc-questionOption-custom is-selected">
+              <span className="oc-questionMark" aria-hidden="true">{marker(true)}</span>
+              <span className="oc-questionOptionBody">
+                <span className="oc-questionOptionLabel">Custom answer</span>
+                <span className="oc-questionAnswerText">{customValue}</span>
+              </span>
+            </div>
+          ) : null
+        ) : (
+          <label className={`oc-questionOption oc-questionOption-custom${customPicked ? " is-selected" : ""}`}>
+            <span className="oc-questionMark" aria-hidden="true">{marker(customPicked)}</span>
+            <span className="oc-questionOptionBody">
+              <span className="oc-questionOptionLabel">Type your own answer</span>
+              <textarea
+                className="oc-answerInput oc-questionInput"
+                value={custom}
+                onChange={(event) => {
+                  const value = event.currentTarget.value
+                  onCustom?.(index, value)
+                }}
+                placeholder="Optional custom answer"
+                rows={Math.max(2, custom.split("\n").length || 2)}
+              />
+            </span>
+          </label>
+        )}
+      </div>
+      {mode === "answered" && selected.length === 0 ? <div className="oc-questionAnswerEmpty">No answer recorded.</div> : null}
     </section>
   )
 }
@@ -1204,7 +1358,8 @@ function ToolTodosPanel({ part, active = false }: { part: Extract<MessagePart, {
 
 function ToolQuestionPanel({ part, active = false }: { part: Extract<MessagePart, { type: "tool" }>; active?: boolean }) {
   const details = toolDetails(part)
-  const answers = stringList(part.state?.metadata?.answers)
+  const answers = questionAnswerGroups(part.state?.metadata?.answers)
+  const questions = questionInfoList(part.state?.input)
   const status = part.state?.status || "pending"
   return (
     <section className={`oc-part oc-part-tool oc-toolPanel${active ? " is-active" : ""}${status === "completed" ? " is-completed" : ""}`}>
@@ -1218,7 +1373,7 @@ function ToolQuestionPanel({ part, active = false }: { part: Extract<MessagePart
             <ToolStatus state={part.state?.status} />
           </div>
         </div>
-      {answers.length > 0 ? <div className="oc-toolAnswerList">{answers.map((item) => <div key={item} className="oc-toolAnswerItem">{item}</div>)}</div> : null}
+      {questions.length > 0 ? <QuestionBlock request={{ id: part.id, questions }} mode="answered" answers={answers} /> : answers.flat().length > 0 ? <div className="oc-toolAnswerList">{answers.flat().map((item) => <div key={item} className="oc-toolAnswerItem">{item}</div>)}</div> : null}
     </section>
   )
 }
@@ -2998,6 +3153,30 @@ function fileLabel(value: string) {
 
 function stringList(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
+}
+
+function questionInfoList(value: unknown) {
+  if (!Array.isArray(recordValue(value).questions)) {
+    return [] as QuestionInfo[]
+  }
+  return recordValue(value).questions as QuestionInfo[]
+}
+
+function questionAnswerGroups(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as string[][]
+  }
+  return value.map((item) => stringList(item))
+}
+
+function questionAnswers(request: Pick<QuestionRequest, "id" | "questions">, index: number, form?: FormState, answers: string[][] = []) {
+  if (!form) {
+    return answers[index] ?? []
+  }
+  const key = answerKey(request.id, index)
+  const base = form.selected[key] ?? []
+  const custom = (form.custom[key] ?? "").trim()
+  return custom ? [...base, custom] : base
 }
 
 function recordOfMessageLists(value: unknown) {
