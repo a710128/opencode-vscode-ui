@@ -70,6 +70,7 @@ export async function health(url: string, timeout: number, tries: number) {
 export function spawn(dir: string, port: number) {
   return cp.spawn("opencode", ["serve", "--port", String(port), "--hostname", "127.0.0.1"], {
     cwd: dir,
+    detached: process.platform !== "win32",
     env: {
       ...process.env,
       OPENCODE_CALLER: "vscode-ui",
@@ -78,7 +79,7 @@ export function spawn(dir: string, port: number) {
 }
 
 export async function stop(proc?: cp.ChildProcess) {
-  if (!proc || proc.killed) {
+  if (!proc || proc.exitCode !== null || proc.signalCode !== null) {
     return
   }
 
@@ -87,15 +88,52 @@ export async function stop(proc?: cp.ChildProcess) {
     proc.once("close", () => resolve())
   })
 
-  proc.kill()
-  await Promise.race([done, wait(400)])
-
-  if (proc.killed) {
+  if (await tree(proc, "SIGINT", 600, done)) {
     return
   }
 
-  proc.kill("SIGKILL")
-  await Promise.race([done, wait(400)])
+  if (await tree(proc, "SIGTERM", 400, done)) {
+    return
+  }
+
+  await tree(proc, "SIGKILL", 400, done)
+}
+
+async function tree(proc: cp.ChildProcess, sig: NodeJS.Signals, ms: number, done: Promise<void>) {
+  const pid = proc.pid
+  if (!pid || proc.exitCode !== null || proc.signalCode !== null) {
+    return true
+  }
+
+  if (process.platform === "win32") {
+    await killWindows(pid)
+    await Promise.race([done, wait(ms)])
+    return proc.exitCode !== null || proc.signalCode !== null
+  }
+
+  try {
+    process.kill(-pid, sig)
+  } catch {
+    try {
+      proc.kill(sig)
+    } catch {
+      return true
+    }
+  }
+
+  await Promise.race([done, wait(ms)])
+  return proc.exitCode !== null || proc.signalCode !== null
+}
+
+async function killWindows(pid: number) {
+  await new Promise<void>((resolve) => {
+    const killer = cp.spawn("taskkill", ["/pid", String(pid), "/t", "/f"], {
+      stdio: "ignore",
+      windowsHide: true,
+    })
+    killer.once("exit", () => resolve())
+    killer.once("error", () => resolve())
+  })
 }
 
 function wait(ms: number) {
