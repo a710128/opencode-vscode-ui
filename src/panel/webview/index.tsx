@@ -555,9 +555,9 @@ function PermissionDock(props: {
     <section className="oc-dock oc-dock-warning">
       <div className="oc-dockHeader">
         <span className="oc-kicker">permission</span>
-        <span className="oc-dockTitle">Approval required</span>
+        <span className="oc-dockTitle">{info.label || "Approval required"}</span>
       </div>
-      <div className="oc-dockText">OpenCode is waiting for confirmation before it continues.</div>
+      <div className="oc-dockText">{info.intro || "OpenCode is waiting for confirmation before it continues."}</div>
       <div className="oc-inlineValue">{info.title}</div>
       {info.details.length > 0 ? (
         <div className="oc-detailList">
@@ -565,8 +565,11 @@ function PermissionDock(props: {
         </div>
       ) : null}
       {request.patterns?.length ? (
-        <div className="oc-pillRow">
-          {request.patterns.map((item) => <span key={item} className="oc-pill">{item}</span>)}
+        <div className="oc-detailList">
+          {info.patternTitle ? <div className="oc-help">{info.patternTitle}</div> : null}
+          <div className="oc-pillRow">
+            {request.patterns.map((item) => <span key={item} className="oc-pill">{item}</span>)}
+          </div>
         </div>
       ) : null}
       {childRequest ? (
@@ -598,6 +601,7 @@ function QuestionDock(props: {
   onSubmit: () => void
 }) {
   const { request, form, onCustom, onOption, onReject, onSubmit } = props
+  const meta = questionPromptInfo(request)
   const [tab, setTab] = React.useState(0)
   const total = request.questions.length
   const last = tab >= total - 1
@@ -623,9 +627,9 @@ function QuestionDock(props: {
     <section className="oc-dock oc-dock-warning">
       <div className="oc-dockHeader">
         <span className="oc-kicker">question</span>
-        <span className="oc-dockTitle">Answer required</span>
+        <span className="oc-dockTitle">{meta.title}</span>
       </div>
-      <div className="oc-dockText">OpenCode needs your answer before it can continue.</div>
+      <div className="oc-dockText">{meta.text}</div>
       <QuestionBlock
         request={request}
         mode="active"
@@ -3021,9 +3025,21 @@ function activeTodos(todos: Todo[]) {
   return todos.filter((item) => item.status !== "completed")
 }
 
-function permissionInfo(request: PermissionRequest) {
+type PermissionInfo = {
+  label: string
+  intro: string
+  title: string
+  details: string[]
+  patternTitle?: string
+}
+
+function permissionInfo(request: PermissionRequest): PermissionInfo {
   const input = permissionInput(request)
   const details: string[] = []
+  const base = {
+    label: "Approval required",
+    intro: "OpenCode is waiting for confirmation before it continues.",
+  }
 
   if (request.permission === "edit") {
     const filepath = stringValue(request.metadata?.filepath)
@@ -3034,12 +3050,13 @@ function permissionInfo(request: PermissionRequest) {
     if (diff) {
       details.push(diff)
     }
-    return { title: `Edit ${filepath || "file"}`, details }
+    return { ...base, title: `Edit ${filepath || "file"}`, details }
   }
 
   if (request.permission === "read") {
     const filePath = stringValue(input.filePath)
     return {
+      ...base,
       title: `Read ${filePath || "file"}`,
       details: filePath ? [`Path: ${filePath}`] : details,
     }
@@ -3048,6 +3065,7 @@ function permissionInfo(request: PermissionRequest) {
   if (request.permission === "glob" || request.permission === "grep") {
     const pattern = stringValue(input.pattern)
     return {
+      ...base,
       title: `${capitalize(request.permission)} ${pattern ? `"${pattern}"` : "request"}`,
       details: pattern ? [`Pattern: ${pattern}`] : details,
     }
@@ -3056,6 +3074,7 @@ function permissionInfo(request: PermissionRequest) {
   if (request.permission === "list") {
     const dir = stringValue(input.path)
     return {
+      ...base,
       title: `List ${dir || "directory"}`,
       details: dir ? [`Path: ${dir}`] : details,
     }
@@ -3065,6 +3084,7 @@ function permissionInfo(request: PermissionRequest) {
     const title = stringValue(input.description) || "Shell command"
     const command = stringValue(input.command)
     return {
+      ...base,
       title,
       details: command ? [`$ ${command}`] : details,
     }
@@ -3074,6 +3094,7 @@ function permissionInfo(request: PermissionRequest) {
     const type = stringValue(input.subagent_type) || "Unknown"
     const description = stringValue(input.description)
     return {
+      ...base,
       title: `${capitalize(type)} task`,
       details: description ? [description] : details,
     }
@@ -3082,6 +3103,7 @@ function permissionInfo(request: PermissionRequest) {
   if (request.permission === "webfetch") {
     const url = stringValue(input.url)
     return {
+      ...base,
       title: `WebFetch ${url || "request"}`,
       details: url ? [`URL: ${url}`] : details,
     }
@@ -3090,6 +3112,7 @@ function permissionInfo(request: PermissionRequest) {
   if (request.permission === "websearch" || request.permission === "codesearch") {
     const query = stringValue(input.query)
     return {
+      ...base,
       title: `${capitalize(request.permission)} ${query ? `"${query}"` : "request"}`,
       details: query ? [`Query: ${query}`] : details,
     }
@@ -3097,20 +3120,29 @@ function permissionInfo(request: PermissionRequest) {
 
   if (request.permission === "external_directory") {
     const filepath = stringValue(request.metadata?.filepath)
+    const parentDir = stringValue(request.metadata?.parentDir)
+    const pattern = stringValue(request.patterns?.[0])
+    const target = parentDir || filepath || pattern || "request"
     return {
-      title: `Access external directory ${filepath || request.patterns?.[0] || "request"}`,
-      details,
+      label: "Permission required",
+      intro: "OpenCode wants to reach outside the current workspace before it continues.",
+      title: `Access external directory ${target}`,
+      details: parentDir && filepath && parentDir !== filepath ? [`Path: ${filepath}`] : [],
+      patternTitle: request.patterns?.length ? "Patterns" : undefined,
     }
   }
 
   if (request.permission === "doom_loop") {
     return {
+      label: "Permission required",
+      intro: "OpenCode paused because the same failure pattern keeps repeating.",
       title: "Continue after repeated failures",
       details: ["This keeps the session running despite repeated failures."],
     }
   }
 
   return {
+    ...base,
     title: `Call tool ${request.permission || "permission"}`,
     details,
   }
@@ -3118,6 +3150,29 @@ function permissionInfo(request: PermissionRequest) {
 
 function permissionInput(request: PermissionRequest) {
   return request.metadata && typeof request.metadata === "object" ? request.metadata : {}
+}
+
+function questionPromptInfo(request: QuestionRequest) {
+  const first = request.questions[0]
+  if (request.questions.length === 1 && first && isPlanExitQuestion(first)) {
+    return {
+      title: "Build agent",
+      text: "The plan is ready. Confirm whether OpenCode should switch back to build mode and start implementing.",
+    }
+  }
+  return {
+    title: "Answer required",
+    text: "OpenCode needs your answer before it can continue.",
+  }
+}
+
+function isPlanExitQuestion(question: QuestionInfo) {
+  return question.header === "Build Agent"
+    && question.custom === false
+    && question.options.length === 2
+    && question.options[0]?.label === "Yes"
+    && question.options[1]?.label === "No"
+    && question.question.includes("switch to the build agent")
 }
 
 function answerKey(requestID: string, index: number) {
