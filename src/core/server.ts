@@ -2,7 +2,7 @@ import * as cp from "node:child_process"
 import * as net from "node:net"
 import type { Client, SessionInfo } from "./sdk"
 
-export type RuntimeState = "starting" | "ready" | "error" | "stopped"
+export type RuntimeState = "starting" | "ready" | "error" | "stopped" | "stopping"
 
 export type WorkspaceRuntime = {
   dir: string
@@ -82,14 +82,20 @@ export async function stop(proc?: cp.ChildProcess) {
     return
   }
 
+  const done = new Promise<void>((resolve) => {
+    proc.once("exit", () => resolve())
+    proc.once("close", () => resolve())
+  })
+
   proc.kill()
-  await wait(150)
+  await Promise.race([done, wait(400)])
 
   if (proc.killed) {
     return
   }
 
   proc.kill("SIGKILL")
+  await Promise.race([done, wait(400)])
 }
 
 function wait(ms: number) {

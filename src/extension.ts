@@ -50,7 +50,8 @@ export async function activate(ctx: vscode.ExtensionContext) {
   )
 }
 
-export function deactivate() {
+export async function deactivate() {
+  await mgr?.shutdown()
   mgr?.dispose()
   mgr = undefined
 }

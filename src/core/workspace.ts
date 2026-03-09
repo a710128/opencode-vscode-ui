@@ -4,6 +4,8 @@ import { freeport, health, spawn, stop, type WorkspaceRuntime } from "./server"
 
 export class WorkspaceManager implements vscode.Disposable {
   private state = new Map<string, WorkspaceRuntime>()
+  private ops = new Map<string, Promise<unknown>>()
+  private shuttingDown = false
   private change = new vscode.EventEmitter<void>()
 
   readonly onDidChange = this.change.event
@@ -31,52 +33,7 @@ export class WorkspaceManager implements vscode.Disposable {
   }
 
   async ensure(folder: vscode.WorkspaceFolder) {
-    const dir = folder.uri.fsPath
-    const cur = this.state.get(dir)
-
-    if (cur && (cur.state === "starting" || cur.state === "ready")) {
-      return cur
-    }
-
-    if (cur?.proc) {
-      await stop(cur.proc)
-    }
-
-    const port = await freeport()
-    const url = `http://127.0.0.1:${port}`
-    const proc = spawn(dir, port)
-    const rt: WorkspaceRuntime = {
-      dir,
-      name: folder.name,
-      port,
-      url,
-      state: "starting",
-      sessions: new Map(),
-      sessionsState: "idle",
-      pid: proc.pid,
-      proc,
-    }
-
-    this.state.set(dir, rt)
-    this.log(rt, `starting server on ${url}`)
-    this.bind(rt)
-    this.fire()
-
-    try {
-      await health(url, 800, 25)
-      rt.sdk = await client(url, dir)
-      rt.state = "ready"
-      rt.err = undefined
-      this.log(rt, "server ready")
-    } catch (err) {
-      rt.state = "error"
-      rt.sdk = undefined
-      rt.err = text(err)
-      this.log(rt, `server failed: ${rt.err}`)
-    }
-
-    this.fire()
-    return rt
+    return this.serialize(folder.uri.fsPath, async () => this.ensureNow(folder))
   }
 
   async restart(dir: string) {
@@ -86,26 +43,24 @@ export class WorkspaceManager implements vscode.Disposable {
       return
     }
 
-    await this.remove(dir)
-    await this.ensure(folder)
+    await this.serialize(dir, async () => {
+      await this.removeNow(dir)
+      return await this.ensureNow(folder)
+    })
   }
 
   async remove(dir: string) {
-    const rt = this.state.get(dir)
+    await this.serialize(dir, async () => this.removeNow(dir))
+  }
 
-    if (!rt) {
-      return
-    }
-
-    this.state.delete(dir)
-    this.fire()
-    await stop(rt.proc)
-    this.log(rt, "server stopped")
+  async shutdown() {
+    this.shuttingDown = true
+    await Promise.all([...this.state.keys()].map((dir) => this.remove(dir)))
   }
 
   dispose() {
     this.change.dispose()
-    void Promise.all([...this.state.keys()].map((dir) => this.remove(dir)))
+    void this.shutdown()
   }
 
   private bind(rt: WorkspaceRuntime) {
@@ -121,6 +76,10 @@ export class WorkspaceManager implements vscode.Disposable {
       const cur = this.state.get(rt.dir)
 
       if (!cur || cur.proc !== rt.proc) {
+        return
+      }
+
+       if (cur.state === "stopping") {
         return
       }
 
@@ -156,6 +115,102 @@ export class WorkspaceManager implements vscode.Disposable {
 
   private fire() {
     this.change.fire()
+  }
+
+  private async ensureNow(folder: vscode.WorkspaceFolder) {
+    const dir = folder.uri.fsPath
+    const cur = this.state.get(dir)
+
+    if (this.shuttingDown) {
+      return cur
+    }
+
+    if (cur && (cur.state === "starting" || cur.state === "ready")) {
+      return cur
+    }
+
+    if (cur?.proc) {
+      await stop(cur.proc)
+    }
+
+    const port = await freeport()
+    const url = `http://127.0.0.1:${port}`
+    const proc = spawn(dir, port)
+    const rt: WorkspaceRuntime = {
+      dir,
+      name: folder.name,
+      port,
+      url,
+      state: "starting",
+      sessions: new Map(),
+      sessionsState: "idle",
+      pid: proc.pid,
+      proc,
+    }
+
+    this.state.set(dir, rt)
+    this.log(rt, `starting server on ${url}`)
+    this.bind(rt)
+    this.fire()
+
+    try {
+      await health(url, 800, 25)
+      const live = this.state.get(dir)
+      if (live !== rt || rt.state === "stopping") {
+        return live
+      }
+      rt.sdk = await client(url, dir)
+      rt.state = "ready"
+      rt.err = undefined
+      this.log(rt, "server ready")
+    } catch (err) {
+      const live = this.state.get(dir)
+      if (live !== rt || rt.state === "stopping") {
+        return live
+      }
+      rt.state = "error"
+      rt.sdk = undefined
+      rt.err = text(err)
+      this.log(rt, `server failed: ${rt.err}`)
+    }
+
+    this.fire()
+    return this.state.get(dir)
+  }
+
+  private async removeNow(dir: string) {
+    const rt = this.state.get(dir)
+
+    if (!rt) {
+      return
+    }
+
+    rt.state = "stopping"
+    rt.sdk = undefined
+    rt.err = undefined
+    this.fire()
+    await stop(rt.proc)
+
+    if (this.state.get(dir) === rt) {
+      this.state.delete(dir)
+      this.fire()
+    }
+    this.log(rt, "server stopped")
+  }
+
+  private async serialize<T>(dir: string, run: () => Promise<T>) {
+    const prev = this.ops.get(dir) || Promise.resolve()
+    const next = prev
+      .catch(() => {})
+      .then(run)
+    this.ops.set(dir, next)
+    try {
+      return await next
+    } finally {
+      if (this.ops.get(dir) === next) {
+        this.ops.delete(dir)
+      }
+    }
   }
 }
 

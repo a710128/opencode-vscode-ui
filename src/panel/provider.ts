@@ -174,45 +174,65 @@ class SessionPanelController implements vscode.Disposable {
     const rt = this.mgr.get(this.ref.dir)
     const workspaceName = rt?.name || path.basename(this.ref.dir)
 
-    if (!rt || rt.state === "starting" || !rt.sdk) {
-        return {
-          status: "loading",
-          sessionRef: this.ref,
-          workspaceName,
-          message: "Workspace runtime is starting.",
-          messages: [],
-          childMessages: {},
-          childSessions: {},
-          submitting: this.submitting,
-          todos: [],
-          diff: [],
-          permissions: [],
-          questions: [],
-          relatedSessionIds: [this.ref.sessionId],
-          agentMode: "build",
-          navigation: {},
-        }
+    if (!rt) {
+      return {
+        status: "error",
+        sessionRef: this.ref,
+        workspaceName,
+        message: "Workspace runtime is unavailable for this folder.",
+        messages: [],
+        childMessages: {},
+        childSessions: {},
+        submitting: this.submitting,
+        todos: [],
+        diff: [],
+        permissions: [],
+        questions: [],
+        relatedSessionIds: [this.ref.sessionId],
+        agentMode: "build",
+        navigation: {},
       }
+    }
+
+    if (rt.state === "starting" || rt.state === "stopping" || !rt.sdk) {
+      return {
+        status: "loading",
+        sessionRef: this.ref,
+        workspaceName,
+        message: rt.state === "stopping" ? "Workspace runtime is stopping." : "Workspace runtime is starting.",
+        messages: [],
+        childMessages: {},
+        childSessions: {},
+        submitting: this.submitting,
+        todos: [],
+        diff: [],
+        permissions: [],
+        questions: [],
+        relatedSessionIds: [this.ref.sessionId],
+        agentMode: "build",
+        navigation: {},
+      }
+    }
 
     if (rt.state !== "ready") {
-        return {
-          status: "error",
-          sessionRef: this.ref,
-          workspaceName,
-          message: rt.err || "Workspace runtime is not ready.",
-          messages: [],
-          childMessages: {},
-          childSessions: {},
-          submitting: this.submitting,
-          todos: [],
-          diff: [],
-          permissions: [],
-          questions: [],
-          relatedSessionIds: [this.ref.sessionId],
-          agentMode: "build",
-          navigation: {},
-        }
+      return {
+        status: "error",
+        sessionRef: this.ref,
+        workspaceName,
+        message: rt.err || "Workspace runtime is not ready.",
+        messages: [],
+        childMessages: {},
+        childSessions: {},
+        submitting: this.submitting,
+        todos: [],
+        diff: [],
+        permissions: [],
+        questions: [],
+        relatedSessionIds: [this.ref.sessionId],
+        agentMode: "build",
+        navigation: {},
       }
+    }
 
     try {
       const [sessionRes, sessionsRes, rootMessageRes, statusRes, todoRes, diffRes, permissionRes, questionRes] = await Promise.all([
