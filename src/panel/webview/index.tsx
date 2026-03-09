@@ -504,7 +504,10 @@ function TimelineBlockView({ block, activeToolID, diffMode }: { block: TimelineB
         {userFiles.length > 0 ? (
           <div className="oc-attachmentRow">
             {userFiles.map((part) => (
-              <span key={part.id} className="oc-pill oc-pill-file">{part.filename || fileLabel(part.url)}</span>
+              <span key={part.id} className="oc-pill oc-pill-file">
+                <span className="oc-pillFileType">{fileTypeLabel(part)}</span>
+                <span className="oc-pillFilePath">{attachmentFilePath(part)}</span>
+              </span>
             ))}
           </div>
         ) : null}
@@ -1628,6 +1631,113 @@ function primaryUserText(message: SessionMessage) {
 
 function userAttachments(message: SessionMessage) {
   return message.parts.filter((part): part is FilePart => part.type === "file")
+}
+
+function attachmentFilePath(part: FilePart) {
+  if (part.filename?.trim()) {
+    return part.filename.trim()
+  }
+
+  const raw = part.url.trim()
+  if (!raw) {
+    return part.url
+  }
+
+  try {
+    const parsed = new URL(raw)
+    if (parsed.protocol === "file:") {
+      return decodeURIComponent(parsed.pathname)
+    }
+    return decodeURIComponent(`${parsed.hostname}${parsed.pathname}` || raw)
+  } catch {
+    return raw
+  }
+}
+
+function fileTypeLabel(part: FilePart) {
+  const mime = part.mime.toLowerCase()
+  const path = attachmentFilePath(part).toLowerCase()
+
+  if (mime === "application/pdf" || path.endsWith(".pdf")) {
+    return "PDF"
+  }
+
+  if (mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg|ico|avif|heic|heif)$/.test(path)) {
+    return "IMG"
+  }
+
+  if (mime.startsWith("audio/") || /\.(mp3|wav|ogg|m4a|flac|aac|opus)$/.test(path)) {
+    return "AUDIO"
+  }
+
+  if (mime.startsWith("video/") || /\.(mp4|mov|m4v|webm|avi|mkv)$/.test(path)) {
+    return "VIDEO"
+  }
+
+  if (mime === "application/json" || mime.endsWith("+json") || path.endsWith(".json") || path.endsWith(".jsonc")) {
+    return "JSON"
+  }
+
+  if (
+    mime === "application/yaml"
+    || mime === "text/yaml"
+    || mime === "text/x-yaml"
+    || path.endsWith(".yaml")
+    || path.endsWith(".yml")
+  ) {
+    return "YAML"
+  }
+
+  if (mime === "application/toml" || path.endsWith(".toml")) {
+    return "TOML"
+  }
+
+  if (mime === "text/markdown" || path.endsWith(".md") || path.endsWith(".mdx")) {
+    return "MD"
+  }
+
+  if (
+    mime.startsWith("text/")
+    && !mime.includes("markdown")
+    && !mime.includes("yaml")
+    && !mime.includes("javascript")
+    && !mime.includes("typescript")
+    && !mime.includes("jsx")
+    && !mime.includes("tsx")
+    && !mime.includes("html")
+    && !mime.includes("css")
+    && !mime.includes("xml")
+    && !mime.includes("json")
+  ) {
+    return "TXT"
+  }
+
+  if (
+    mime.includes("javascript")
+    || mime.includes("typescript")
+    || mime.includes("jsx")
+    || mime.includes("tsx")
+    || mime.includes("html")
+    || mime.includes("css")
+    || mime.includes("xml")
+    || mime.includes("python")
+    || mime.includes("java")
+    || mime.includes("rust")
+    || mime.includes("go")
+    || mime.includes("php")
+    || mime.includes("ruby")
+    || mime.includes("shellscript")
+    || mime.includes("x-sh")
+    || /\.(c|cc|cpp|cs|go|java|js|jsx|mjs|cjs|ts|tsx|py|rb|rs|php|swift|kt|kts|scala|sh|bash|zsh|fish|html|css|scss|sass|less|xml|sql)$/.test(path)
+  ) {
+    return "CODE"
+  }
+
+  if (path.endsWith(".txt") || path.endsWith(".log")) {
+    return "TXT"
+  }
+
+  return "TXT"
 }
 
 function latestActiveToolId(parts: MessagePart[]) {

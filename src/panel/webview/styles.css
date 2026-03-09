@@ -40,11 +40,11 @@
   --oc-md-link-text: var(--vscode-terminal-ansiCyan);
   --oc-md-code: var(--vscode-terminal-ansiGreen);
   --oc-md-quote: var(--vscode-terminal-ansiYellow);
-  --oc-md-emph: #ff966c;
-  --oc-md-strong: #ff966c;
+  --oc-md-emph: rgb(255, 163, 28);
+  --oc-md-strong: rgb(255, 163, 28);
   --oc-md-rule: color-mix(in srgb, var(--oc-fg-primary) 32%, transparent 68%);
-  --oc-md-list: #ff966c;
-  --oc-md-list-enum: #ff966c;
+  --oc-md-list: rgb(255, 163, 28);
+  --oc-md-list-enum: rgb(255, 163, 28);
   --oc-md-code-block: var(--oc-fg-primary);
   --oc-md-syntax-comment: color-mix(in srgb, var(--oc-muted) 88%, var(--vscode-terminal-ansiBlack) 12%);
   --oc-md-syntax-keyword: var(--vscode-terminal-ansiMagenta);
@@ -1440,7 +1440,7 @@ label.oc-questionOption:hover {
 .oc-markdown h4,
 .oc-markdown h5,
 .oc-markdown h6 {
-  margin: 0;
+  margin: 1em 0 0;
   font-size: var(--oc-font-size-lg);
   line-height: 1.45;
   font-weight: 600;
@@ -1738,6 +1738,29 @@ label.oc-questionOption:hover {
 
 .oc-pill-file {
   color: var(--oc-fg-muted);
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.oc-pillFileType {
+  display: inline-flex;
+  align-items: center;
+  align-self: stretch;
+  padding: 4px 6px;
+  background: var(--vscode-terminal-ansiBlue);
+  color: var(--oc-fg-primary);
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+.oc-pillFilePath {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  padding: 5px 9px;
 }
 
 .oc-chip {
