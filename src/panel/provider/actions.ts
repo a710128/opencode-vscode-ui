@@ -1,9 +1,11 @@
 import * as vscode from "vscode"
+import * as path from "node:path"
 import { postToWebview } from "../../bridge/host"
-import type { SessionPanelRef } from "../../bridge/types"
-import type { MessageInfo, PermissionReply } from "../../core/sdk"
+import type { ComposerPromptPart, SessionPanelRef } from "../../bridge/types"
+import type { MessageInfo, PermissionReply, PromptPartInput } from "../../core/sdk"
 import { WorkspaceManager } from "../../core/workspace"
 import { text, textError, wait } from "./utils"
+import { resolveFileUri } from "./files"
 
 export type PanelActionState = {
   disposed: boolean
@@ -20,7 +22,7 @@ type ActionContext = {
   push: (force?: boolean) => Promise<void>
 }
 
-export async function submit(ctx: ActionContext, textValue: string, agent?: string, model?: MessageInfo["model"]) {
+export async function submit(ctx: ActionContext, textValue: string, parts?: ComposerPromptPart[], agent?: string, model?: MessageInfo["model"]) {
   const value = textValue.trim()
 
   if (!value || ctx.state.disposed) {
@@ -39,17 +41,13 @@ export async function submit(ctx: ActionContext, textValue: string, agent?: stri
   await ctx.push(true)
 
   try {
+    const prompt = await toPromptParts(ctx.ref.dir, value, parts)
     await rt.sdk.session.promptAsync({
       sessionID: ctx.ref.sessionId,
       directory: rt.dir,
       agent,
       model,
-      parts: [
-        {
-          type: "text",
-          text: value,
-        },
-      ],
+      parts: prompt,
     })
     await wait(400)
     if (!ctx.state.disposed && run === ctx.state.run) {
@@ -189,4 +187,42 @@ export async function fail(webview: vscode.Webview, message: string) {
     type: "error",
     message,
   })
+}
+
+async function toPromptParts(workspaceDir: string, textValue: string, parts?: ComposerPromptPart[]): Promise<PromptPartInput[]> {
+  if (!parts || parts.length === 0) {
+    return [{ type: "text", text: textValue }]
+  }
+
+  const out: PromptPartInput[] = []
+  for (const part of parts) {
+    if (part.type === "text") {
+      out.push(part)
+      continue
+    }
+    if (part.type === "agent") {
+      out.push(part)
+      continue
+    }
+
+    const uri = await resolveFileUri(workspaceDir, part.path)
+    if (!uri) {
+      out.push({ type: "text", text: part.source.value })
+      continue
+    }
+
+    out.push({
+      type: "file",
+      mime: "text/plain",
+      filename: path.basename(part.path),
+      url: uri.toString(),
+      source: {
+        type: "file",
+        path: uri.fsPath,
+        text: part.source,
+      },
+    })
+  }
+
+  return out.length > 0 ? out : [{ type: "text", text: textValue }]
 }

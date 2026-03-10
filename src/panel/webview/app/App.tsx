@@ -1,9 +1,9 @@
 import React from "react"
-import type { SessionBootstrap } from "../../../bridge/types"
+import type { ComposerPromptPart, SessionBootstrap } from "../../../bridge/types"
 import type { QuestionRequest } from "../../../core/sdk"
 import { ChildMessagesContext, ChildSessionsContext, WorkspaceDirContext } from "./contexts"
 import { answerKey, PermissionDock, QuestionDock, RetryStatus, SessionNav, SubagentNotice } from "./docks"
-import { createInitialState, type AppState, type VsCodeApi } from "./state"
+import { createInitialState, type AppState, type ComposerMention, type VsCodeApi } from "./state"
 import { Timeline } from "./timeline"
 import { AgentBadge, CompactionDivider, EmptyState, MarkdownBlock, PartView, WebviewBindingsProvider } from "./webview-bindings"
 import { resizeComposer, useComposerResize } from "../hooks/useComposer"
@@ -32,9 +32,12 @@ if (initialRef) {
 export function App() {
   const [state, setState] = React.useState(() => createInitialState(initialRef))
   const [pendingMcpActions, setPendingMcpActions] = React.useState<Record<string, boolean>>({})
+  const [fileResults, setFileResults] = React.useState<Array<{ path: string }>>([])
+  const [fileSearch, setFileSearch] = React.useState<{ status: "idle" | "searching" | "done"; query: string }>({ status: "idle", query: "" })
   const timelineRef = React.useRef<HTMLDivElement | null>(null)
   const composerRef = React.useRef<HTMLTextAreaElement | null>(null)
-  const composerMenuItems = React.useMemo(() => buildComposerMenuItems(state), [state])
+  const searchRef = React.useRef<{ requestID: string; query: string } | null>(null)
+  const composerMenuItems = React.useMemo(() => buildComposerMenuItems(state, fileResults), [fileResults, state])
   const composerAutocomplete = useComposerAutocomplete(composerMenuItems)
 
   const blocked = state.snapshot.permissions.length > 0 || state.snapshot.questions.length > 0
@@ -42,7 +45,22 @@ export function App() {
   const firstPermission = state.snapshot.permissions[0]
   const firstQuestion = state.snapshot.questions[0]
 
-  useHostMessages({ fileRefStatus, setPendingMcpActions, setState, vscode })
+  useHostMessages({
+    fileRefStatus,
+    onFileSearchResults: (payload) => {
+      if (!searchRef.current || payload.requestID !== searchRef.current.requestID) {
+        return
+      }
+      if (payload.query !== searchRef.current.query) {
+        return
+      }
+      setFileResults(payload.results)
+      setFileSearch({ status: "done", query: payload.query })
+    },
+    setPendingMcpActions,
+    setState,
+    vscode,
+  })
   useComposerResize(composerRef, state.draft)
   useTimelineScroll(timelineRef, [state.snapshot.messages, state.snapshot.submitting, state.snapshot.permissions, state.snapshot.questions])
   useModifierState()
@@ -51,32 +69,64 @@ export function App() {
     document.title = `OpenCode: ${sessionTitle(state.bootstrap)}`
   }, [state.bootstrap])
 
+  React.useEffect(() => {
+    if (composerAutocomplete.state?.trigger !== "mention") {
+      searchRef.current = null
+      setFileResults([])
+      setFileSearch({ status: "idle", query: "" })
+      return
+    }
+
+    const query = composerAutocomplete.state.query.trim()
+    if (!query) {
+      searchRef.current = null
+      setFileResults([])
+      setFileSearch({ status: "idle", query: "" })
+      return
+    }
+
+    const requestID = `file-search:${Date.now()}:${query}`
+    searchRef.current = { requestID, query }
+    setFileSearch({ status: "searching", query })
+    const timer = window.setTimeout(() => {
+      vscode.postMessage({
+        type: "searchFiles",
+        requestID,
+        query,
+      })
+    }, 80)
+
+    return () => window.clearTimeout(timer)
+  }, [composerAutocomplete.state])
+
 
   const submit = React.useCallback(() => {
-    const text = state.draft.trim()
-    if (!text || blocked) {
+    if (!state.draft.trim() || blocked) {
       return
     }
 
     const selection = composerSelection({ ...state.snapshot, composerAgentOverride: state.composerAgentOverride })
+    const parts = buildComposerSubmitParts(state.draft, state.composerMentions)
     vscode.postMessage({
       type: "submit",
-      text,
+      text: state.draft,
+      parts,
       agent: selection.agent,
       model: selection.model,
     })
     setState((current) => ({
       ...current,
       draft: "",
+      composerMentions: [],
       composerAgentOverride: undefined,
       error: "",
     }))
-  }, [blocked, state.composerAgentOverride, state.draft, state.snapshot])
+  }, [blocked, state.composerAgentOverride, state.composerMentions, state.draft, state.snapshot])
 
   const acceptComposerAutocomplete = React.useCallback((item: ComposerAutocompleteItem) => {
     if (item.kind === "action") {
       if (item.id === "slash-clear") {
-        setState((current) => ({ ...current, draft: "", error: "" }))
+        setState((current) => ({ ...current, draft: "", composerMentions: [], composerAgentOverride: undefined, error: "" }))
         composerAutocomplete.close()
         return
       }
@@ -85,6 +135,7 @@ export function App() {
         setState((current) => ({
           ...current,
           draft: "",
+          composerMentions: [],
           composerAgentOverride: undefined,
           error: "",
         }))
@@ -99,26 +150,35 @@ export function App() {
       }
     }
 
-    if (item.kind === "agent") {
+    if (item.kind === "agent" || item.kind === "file") {
+      const range = composerAutocomplete.state
+      const mention = item.mention
+      if (!range || !mention) {
+        composerAutocomplete.close()
+        return
+      }
+
+      const next = insertComposerMention(state.draft, state.composerMentions, range.start, range.end, mention)
+
       setState((current) => ({
         ...current,
-        draft: removeComposerMentionToken(current.draft, composerRef.current?.selectionStart),
-        composerAgentOverride: item.id.slice("agent:".length),
+        draft: next.draft,
+        composerMentions: next.composerMentions,
+        composerAgentOverride: next.composerAgentOverride,
         error: "",
       }))
       composerAutocomplete.close()
       window.setTimeout(() => {
-        const next = composerRef.current
-        if (!next) {
+        const input = composerRef.current
+        if (!input) {
           return
         }
-        next.focus()
-        const end = next.value.length
-        next.setSelectionRange(end, end)
-        resizeComposer(next)
+        input.focus()
+        input.setSelectionRange(next.cursor, next.cursor)
+        resizeComposer(input)
       }, 0)
     }
-  }, [composerAutocomplete, setState])
+  }, [composerAutocomplete, setState, state.composerMentions, state.draft])
 
   const sendQuestionReply = React.useCallback((request: QuestionRequest) => {
     const answers = request.questions.map((_item, index) => {
@@ -247,15 +307,23 @@ export function App() {
                   value={state.draft}
                   onChange={(event) => {
                     const value = event.currentTarget.value
-                    composerAutocomplete.sync(value, event.currentTarget.selectionStart)
-                    setState((current) => ({ ...current, draft: value }))
+                    composerAutocomplete.sync(value, event.currentTarget.selectionStart, event.currentTarget.selectionEnd)
+                    setState((current) => {
+                      const composerMentions = syncComposerMentions(current.draft, value, current.composerMentions)
+                      return {
+                        ...current,
+                        draft: value,
+                        composerMentions,
+                        composerAgentOverride: composerAgentOverride(composerMentions),
+                      }
+                    })
                   }}
                   onInput={(event) => resizeComposer(event.currentTarget)}
                   onSelect={(event) => {
-                    composerAutocomplete.sync(event.currentTarget.value, event.currentTarget.selectionStart)
+                    composerAutocomplete.sync(event.currentTarget.value, event.currentTarget.selectionStart, event.currentTarget.selectionEnd)
                   }}
                   onFocus={(event) => {
-                    composerAutocomplete.sync(event.currentTarget.value, event.currentTarget.selectionStart)
+                    composerAutocomplete.sync(event.currentTarget.value, event.currentTarget.selectionStart, event.currentTarget.selectionEnd)
                   }}
                   onBlur={() => {
                     window.setTimeout(() => composerAutocomplete.close(), 0)
@@ -298,8 +366,8 @@ export function App() {
                 placeholder="Ask OpenCode to inspect, explain, or change this workspace."
                 disabled={state.bootstrap.status !== "ready" || blocked}
               />
-              {composerAutocomplete.state ? <ComposerAutocompletePopup state={composerAutocomplete.state} onSelect={acceptComposerAutocomplete} /> : null}
-              <ComposerInfo state={state} />
+               {composerAutocomplete.state ? <ComposerAutocompletePopup state={composerAutocomplete.state} fileSearch={fileSearch} onSelect={acceptComposerAutocomplete} /> : null}
+               <ComposerInfo state={state} />
             </div>
             <div className="oc-composerActions">
               <div className="oc-composerContextWrap">
@@ -322,40 +390,98 @@ export function App() {
   )
 }
 
-function ComposerAutocompletePopup({ state, onSelect }: { state: ComposerAutocompleteState; onSelect: (item: ComposerAutocompleteItem) => void }) {
+function ComposerAutocompletePopup({ state, fileSearch, onSelect }: { state: ComposerAutocompleteState; fileSearch: { status: "idle" | "searching" | "done"; query: string }; onSelect: (item: ComposerAutocompleteItem) => void }) {
   if (!state) {
     return null
   }
+
+  const groups = state.trigger === "mention"
+    ? [
+        { title: "Agents", items: state.items.filter((item) => item.kind === "agent") },
+        { title: "Files", items: state.items.filter((item) => item.kind === "file") },
+      ].filter((group) => group.items.length > 0)
+    : []
+  const empty = popupEmptyText(state, fileSearch)
 
   return (
     <div className="oc-composerAutocomplete" role="listbox" aria-label={`${state.trigger} suggestions`}>
       <div className="oc-composerAutocompleteHeader">
         <span className="oc-composerAutocompleteTrigger">{state.trigger === "slash" ? "/" : "@"}</span>
-        <span>{state.query ? `Filter: ${state.query}` : "Start typing to filter"}</span>
+        <span>{popupHeaderText(state, fileSearch)}</span>
       </div>
       <div className="oc-composerAutocompleteList">
-        {state.items.length > 0 ? state.items.map((item, index) => (
-          <button
-            type="button"
-            key={item.id}
-            className={`oc-composerAutocompleteItem${index === state.selectedIndex ? " is-active" : ""}`}
-            role="option"
-            aria-selected={index === state.selectedIndex}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => onSelect(item)}
-          >
-            <div className="oc-composerAutocompleteLabelWrap">
-              <div className="oc-composerAutocompleteLabel">{item.label}</div>
-              <div className="oc-composerAutocompleteDetail" title={item.detail}>{item.detail}</div>
-              <div className="oc-composerAutocompleteKind">{item.kind}</div>
-            </div>
-          </button>
-        )) : (
-          <div className="oc-composerAutocompleteEmpty">No matches</div>
+        {state.items.length > 0 ? (
+          state.trigger === "mention"
+            ? groups.map((group) => (
+                <div key={group.title} className="oc-composerAutocompleteSection">
+                  <div className="oc-composerAutocompleteSectionTitle">{group.title}</div>
+                  <div className="oc-composerAutocompleteSectionItems">
+                    {group.items.map((item) => renderComposerAutocompleteItem(state, item, onSelect))}
+                  </div>
+                </div>
+              ))
+            : state.items.map((item) => renderComposerAutocompleteItem(state, item, onSelect))
+        ) : (
+          <div className="oc-composerAutocompleteEmpty">{empty}</div>
         )}
       </div>
     </div>
   )
+}
+
+function renderComposerAutocompleteItem(state: ComposerAutocompleteState, item: ComposerAutocompleteItem, onSelect: (item: ComposerAutocompleteItem) => void) {
+  const index = state.items.findIndex((entry) => entry.id === item.id)
+  return (
+    <button
+      type="button"
+      key={item.id}
+      className={`oc-composerAutocompleteItem${index === state.selectedIndex ? " is-active" : ""}`}
+      role="option"
+      aria-selected={index === state.selectedIndex}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => onSelect(item)}
+    >
+      <div className="oc-composerAutocompleteLabelWrap">
+        <div className="oc-composerAutocompleteTopline">
+          <div className="oc-composerAutocompleteLabel">{item.label}</div>
+          <div className="oc-composerAutocompleteKind">{item.kind}</div>
+        </div>
+        <div className="oc-composerAutocompleteDetail" title={item.detail}>{item.detail}</div>
+      </div>
+    </button>
+  )
+}
+
+function popupHeaderText(state: ComposerAutocompleteState, fileSearch: { status: "idle" | "searching" | "done"; query: string }) {
+  if (state.trigger === "slash") {
+    return state.query ? `Filter: ${state.query}` : "Start typing to filter"
+  }
+
+  if (!state.query) {
+    return "Type an agent name or file path"
+  }
+
+  if (fileSearch.status === "searching" && fileSearch.query === state.query) {
+    return `Searching files for \"${state.query}\"...`
+  }
+
+  return `Filter: ${state.query}`
+}
+
+function popupEmptyText(state: ComposerAutocompleteState, fileSearch: { status: "idle" | "searching" | "done"; query: string }) {
+  if (state.trigger === "slash") {
+    return state.query ? `No slash actions match \"${state.query}\"` : "Start typing to filter"
+  }
+
+  if (!state.query) {
+    return "Type an agent name or file path"
+  }
+
+  if (fileSearch.status === "searching" && fileSearch.query === state.query) {
+    return `Searching files for \"${state.query}\"...`
+  }
+
+  return `No agents or files match \"${state.query}\"`
 }
 
 function ComposerInfo({ state }: { state: AppState }) {
@@ -376,7 +502,7 @@ function ComposerInfo({ state }: { state: AppState }) {
   )
 }
 
-function buildComposerMenuItems(state: AppState): ComposerAutocompleteItem[] {
+function buildComposerMenuItems(state: AppState, files: Array<{ path: string }>): ComposerAutocompleteItem[] {
   const slashItems: ComposerAutocompleteItem[] = [
     {
       id: "slash-refresh",
@@ -414,33 +540,182 @@ function buildComposerMenuItems(state: AppState): ComposerAutocompleteItem[] {
     keywords: [agent.mode, agent.variant ?? ""].filter(Boolean),
     trigger: "mention" as const,
     kind: "agent" as const,
+    mention: {
+      type: "agent" as const,
+      name: agent.name,
+      content: `@${agent.name}`,
+    },
   }))
 
-  return [...slashItems, ...agentItems]
+  const fileItems = files.map((item) => ({
+    id: `file:${item.path}`,
+    label: item.path.split("/").pop() || item.path,
+    detail: item.path,
+    keywords: item.path.split("/").filter(Boolean),
+    trigger: "mention" as const,
+    kind: "file" as const,
+    mention: {
+      type: "file" as const,
+      path: item.path,
+      content: `@${item.path}`,
+    },
+  }))
+
+  return [...slashItems, ...agentItems, ...fileItems]
 }
 
-function removeComposerMentionToken(value: string, cursor: number | null | undefined) {
-  if (typeof cursor !== "number" || cursor < 1) {
-    return value
+function composerAgentOverride(mentions: ComposerMention[]) {
+  for (let i = mentions.length - 1; i >= 0; i -= 1) {
+    const item = mentions[i]
+    if (item && item.type === "agent") {
+      return item.name
+    }
+  }
+}
+
+function buildComposerSubmitParts(value: string, mentions: ComposerMention[]): ComposerPromptPart[] {
+  const parts: ComposerPromptPart[] = []
+  const items = [...mentions].sort((a, b) => a.start - b.start)
+  let cursor = 0
+
+  for (const item of items) {
+    if (item.start > cursor) {
+      pushComposerTextPart(parts, value.slice(cursor, item.start))
+    }
+
+    parts.push(item.type === "agent"
+      ? {
+          type: "agent",
+          name: item.name,
+          source: {
+            value: item.content,
+            start: item.start,
+            end: item.end,
+          },
+        }
+      : {
+          type: "file",
+          path: item.path,
+          source: {
+            value: item.content,
+            start: item.start,
+            end: item.end,
+          },
+        })
+    cursor = item.end
   }
 
-  let start = cursor - 1
-  while (start >= 0) {
-    const char = value[start]
-    if (char === "@") {
-      const prev = start === 0 ? "" : value[start - 1]
-      if (prev && !/\s/.test(prev)) {
-        return value
+  if (cursor < value.length) {
+    pushComposerTextPart(parts, value.slice(cursor))
+  }
+
+  if (parts.length > 0) {
+    return parts
+  }
+
+  return value.trim()
+    ? [{ type: "text", text: value.trim() }]
+    : []
+}
+
+function insertComposerMention(value: string, mentions: ComposerMention[], start: number, end: number, mention: NonNullable<ComposerAutocompleteItem["mention"]>) {
+  const insert = `${mention.content} `
+  const draft = `${value.slice(0, start)}${insert}${value.slice(end)}`
+  const delta = insert.length - (end - start)
+  const composerMentions = mentions
+    .flatMap((item) => {
+      if (item.end <= start) {
+        return [item]
       }
-      return `${value.slice(0, start)}${value.slice(cursor)}`.replace(/ {2,}/g, " ").trimStart()
-    }
-    if (/\s/.test(char)) {
-      return value
-    }
-    start -= 1
+      if (item.start >= end) {
+        return [{ ...item, start: item.start + delta, end: item.end + delta }]
+      }
+      return []
+    })
+    .concat(mention.type === "agent"
+      ? {
+          type: "agent" as const,
+          name: mention.name,
+          content: mention.content,
+          start,
+          end: start + mention.content.length,
+        }
+      : {
+          type: "file" as const,
+          path: mention.path,
+          content: mention.content,
+          start,
+          end: start + mention.content.length,
+        })
+    .sort((a, b) => a.start - b.start)
+
+  return {
+    draft,
+    cursor: start + insert.length,
+    composerMentions,
+    composerAgentOverride: composerAgentOverride(composerMentions),
+  }
+}
+
+function syncComposerMentions(prev: string, next: string, mentions: ComposerMention[]) {
+  if (mentions.length === 0) {
+    return mentions
   }
 
-  return value
+  const range = textChangeRange(prev, next)
+  if (!range) {
+    return mentions.filter((item) => next.slice(item.start, item.end) === item.content)
+  }
+
+  return mentions
+    .flatMap((item) => {
+      if (item.end <= range.start) {
+        return [item]
+      }
+      if (item.start >= range.beforeEnd) {
+        return [{ ...item, start: item.start + range.delta, end: item.end + range.delta }]
+      }
+      return []
+    })
+    .filter((item) => next.slice(item.start, item.end) === item.content)
+}
+
+function textChangeRange(prev: string, next: string) {
+  if (prev === next) {
+    return null
+  }
+
+  let start = 0
+  while (start < prev.length && start < next.length && prev[start] === next[start]) {
+    start += 1
+  }
+
+  let beforeEnd = prev.length
+  let afterEnd = next.length
+  while (beforeEnd > start && afterEnd > start && prev[beforeEnd - 1] === next[afterEnd - 1]) {
+    beforeEnd -= 1
+    afterEnd -= 1
+  }
+
+  return {
+    start,
+    beforeEnd,
+    delta: afterEnd - beforeEnd,
+  }
+}
+
+function pushComposerTextPart(parts: ComposerPromptPart[], text: string) {
+  if (!text) {
+    return
+  }
+
+  const prev = parts[parts.length - 1]
+  if (prev?.type === "text") {
+    prev.text += text
+    return
+  }
+
+  parts.push({ type: "text", text })
 }
 
 function ComposerRunningIndicator({ running }: { running: boolean }) {

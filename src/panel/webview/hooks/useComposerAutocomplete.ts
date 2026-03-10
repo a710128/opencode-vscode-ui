@@ -8,12 +8,23 @@ export type ComposerAutocompleteItem = {
   detail: string
   keywords?: string[]
   trigger: ComposerAutocompleteTrigger
-  kind: "action" | "agent"
+  kind: "action" | "agent" | "file"
+  mention?: ({
+    type: "agent"
+    name: string
+  } | {
+    type: "file"
+    path: string
+  }) & {
+    content: string
+  }
 }
 
 export type ComposerAutocompleteState = {
   trigger: ComposerAutocompleteTrigger
   query: string
+  start: number
+  end: number
   items: ComposerAutocompleteItem[]
   selectedIndex: number
 }
@@ -21,13 +32,15 @@ export type ComposerAutocompleteState = {
 type ComposerAutocompleteMatch = {
   trigger: ComposerAutocompleteTrigger
   query: string
+  start: number
+  end: number
 }
 
 export function useComposerAutocomplete(sources: ComposerAutocompleteItem[]) {
   const [state, setState] = React.useState<ComposerAutocompleteState | null>(null)
 
-  const sync = React.useCallback((value: string, cursor: number | null | undefined) => {
-    const next = matchAutocomplete(value, cursor)
+  const sync = React.useCallback((value: string, start: number | null | undefined, end?: number | null | undefined) => {
+    const next = matchAutocomplete(value, start, end)
     if (!next) {
       setState(null)
       return
@@ -41,12 +54,14 @@ export function useComposerAutocomplete(sources: ComposerAutocompleteItem[]) {
           ? Math.min(current.selectedIndex, items.length - 1)
           : 0
 
-      return {
-        trigger: next.trigger,
-        query: next.query,
-        items,
-        selectedIndex,
-      }
+        return {
+          trigger: next.trigger,
+          query: next.query,
+          start: next.start,
+          end: next.end,
+          items,
+          selectedIndex,
+        }
     })
   }, [sources])
 
@@ -80,17 +95,21 @@ export function useComposerAutocomplete(sources: ComposerAutocompleteItem[]) {
   }
 }
 
-function matchAutocomplete(value: string, cursor: number | null | undefined): ComposerAutocompleteMatch | null {
-  if (typeof cursor !== "number") {
+function matchAutocomplete(value: string, start: number | null | undefined, end?: number | null | undefined): ComposerAutocompleteMatch | null {
+  if (typeof start !== "number") {
     return null
   }
 
-  const slash = matchSlash(value, cursor)
+  if (typeof end === "number" && end !== start) {
+    return null
+  }
+
+  const slash = matchSlash(value, start)
   if (slash) {
     return slash
   }
 
-  return matchMention(value, cursor)
+  return matchMention(value, start)
 }
 
 function matchSlash(value: string, cursor: number): ComposerAutocompleteMatch | null {
@@ -103,9 +122,16 @@ function matchSlash(value: string, cursor: number): ComposerAutocompleteMatch | 
     return null
   }
 
+  const next = value[cursor]
+  if (next && !/\s/.test(next)) {
+    return null
+  }
+
   return {
     trigger: "slash",
     query: value.slice(1, cursor),
+    start: 0,
+    end: cursor,
   }
 }
 
@@ -122,9 +148,17 @@ function matchMention(value: string, cursor: number): ComposerAutocompleteMatch 
       if (prev && !/\s/.test(prev)) {
         return null
       }
+
+      const next = value[cursor]
+      if (next && !/\s/.test(next)) {
+        return null
+      }
+
       return {
         trigger: "mention",
         query: value.slice(index + 1, cursor),
+        start: index,
+        end: cursor,
       }
     }
     if (/\s/.test(char)) {
@@ -143,8 +177,42 @@ function filterItems(items: ComposerAutocompleteItem[], trigger: ComposerAutocom
     return source
   }
 
-  return source.filter((item) => {
-    const haystack = [item.label, item.detail, ...(item.keywords ?? [])].join(" ").toLowerCase()
-    return haystack.includes(normalized)
-  })
+  return source
+    .map((item, index) => ({
+      item,
+      index,
+      rank: matchRank(item, normalized),
+    }))
+    .filter((item): item is { item: ComposerAutocompleteItem; index: number; rank: number } => item.rank !== undefined)
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((item) => item.item)
+}
+
+function matchRank(item: ComposerAutocompleteItem, query: string) {
+  const label = item.label.toLowerCase()
+  const detail = item.detail.toLowerCase()
+  const keywords = (item.keywords ?? []).map((value) => value.toLowerCase())
+  const haystack = [label, detail, ...keywords]
+
+  if (label === query) {
+    return 0
+  }
+  if (label.startsWith(query)) {
+    return 1
+  }
+  if (keywords.some((value) => value === query)) {
+    return 2
+  }
+  if (detail === query) {
+    return 3
+  }
+  if (detail.startsWith(query)) {
+    return 4
+  }
+  if (haystack.some((value) => value.includes(`/${query}`))) {
+    return 5
+  }
+  if (haystack.some((value) => value.includes(query))) {
+    return 6
+  }
 }

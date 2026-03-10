@@ -5,7 +5,7 @@ import { EventHub } from "../../core/events"
 import type { SessionEvent } from "../../core/sdk"
 import { WorkspaceManager } from "../../core/workspace"
 import { rejectQuestion, replyPermission, replyQuestion, runComposerAction, submit, toggleMcp, type PanelActionState } from "./actions"
-import { openFile, resolveFileRefs } from "./files"
+import { openFile, resolveFileRefs, searchFiles } from "./files"
 import { needsRefresh, reduce } from "./reducer"
 import { buildSessionSnapshot, patch } from "./snapshot"
 import { boot, panelIconPath, panelTitle } from "./utils"
@@ -52,7 +52,7 @@ export class SessionPanelController implements vscode.Disposable {
         }
 
         if (message?.type === "submit") {
-          void submit(this.actionContext(), message.text, message.agent, message.model)
+          void submit(this.actionContext(), message.text, message.parts, message.agent, message.model)
           return
         }
 
@@ -83,6 +83,11 @@ export class SessionPanelController implements vscode.Disposable {
 
         if (message?.type === "resolveFileRefs") {
           void resolveFileRefs(this.panel.webview, this.ref.dir, message.refs)
+          return
+        }
+
+        if (message?.type === "searchFiles") {
+          void searchFiles(this.panel.webview, this.ref.dir, message.requestID, message.query)
           return
         }
 

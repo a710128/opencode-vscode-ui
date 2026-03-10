@@ -12,6 +12,20 @@ export type FormState = {
   reject: Record<string, string>
 }
 
+type ComposerMentionBase = {
+  content: string
+  start: number
+  end: number
+}
+
+export type ComposerMention = ({
+  type: "agent"
+  name: string
+} | {
+  type: "file"
+  path: string
+}) & ComposerMentionBase
+
 export type AppState = {
   bootstrap: SessionBootstrap
   snapshot: {
@@ -42,6 +56,7 @@ export type AppState = {
     }
   }
   draft: string
+  composerMentions: ComposerMention[]
   composerAgentOverride?: string
   error: string
   form: FormState
@@ -76,6 +91,7 @@ export function createInitialState(initialRef: SessionBootstrap["sessionRef"] | 
       navigation: {},
     },
     draft: "",
+    composerMentions: [],
     composerAgentOverride: undefined,
     error: "",
     form: {

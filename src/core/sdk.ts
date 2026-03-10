@@ -149,6 +149,37 @@ export type MessageInfo = {
   variant?: string
 }
 
+export type PromptSource = {
+  value: string
+  start: number
+  end: number
+}
+
+export type PromptTextPartInput = {
+  type: "text"
+  text: string
+}
+
+export type PromptAgentPartInput = {
+  type: "agent"
+  name: string
+  source?: PromptSource
+}
+
+export type PromptFilePartInput = {
+  type: "file"
+  mime: string
+  filename?: string
+  url: string
+  source?: {
+    type: "file"
+    path: string
+    text: PromptSource
+  }
+}
+
+export type PromptPartInput = PromptTextPartInput | PromptAgentPartInput | PromptFilePartInput
+
 export type TextPart = {
   id: string
   sessionID: string
@@ -419,10 +450,7 @@ export type Client = {
       agent?: string
       noReply?: boolean
       variant?: string
-      parts: Array<{
-        type: "text"
-        text: string
-      }>
+      parts: PromptPartInput[]
     }): Promise<{ data?: void }>
     todo(input: {
       sessionID: string

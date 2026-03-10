@@ -1,4 +1,4 @@
-import type { AgentInfo, FileDiff, LspStatus, McpStatus, PermissionRequest, ProviderInfo, QuestionRequest, SessionInfo, SessionMessage, SessionStatus, Todo } from "../core/sdk"
+import type { AgentInfo, FileDiff, LspStatus, McpStatus, PermissionRequest, PromptSource, ProviderInfo, QuestionRequest, SessionInfo, SessionMessage, SessionStatus, Todo } from "../core/sdk"
 
 export const SESSION_PANEL_VIEW_TYPE = "opencode-ui.session"
 
@@ -70,6 +70,30 @@ export type HostMessage =
       type: "mcpActionFinished"
       name: string
     }
+  | {
+      type: "fileSearchResults"
+      requestID: string
+      query: string
+      results: Array<{
+        path: string
+      }>
+    }
+
+export type ComposerPromptPart =
+  | {
+      type: "text"
+      text: string
+    }
+  | {
+      type: "agent"
+      name: string
+      source?: PromptSource
+    }
+  | {
+      type: "file"
+      path: string
+      source: PromptSource
+    }
 
 export type WebviewMessage =
   | {
@@ -81,6 +105,7 @@ export type WebviewMessage =
   | {
       type: "submit"
       text: string
+      parts?: ComposerPromptPart[]
       agent?: string
       model?: {
         providerID: string
@@ -126,4 +151,9 @@ export type WebviewMessage =
   | {
       type: "composerAction"
       action: "refreshSession"
+    }
+  | {
+      type: "searchFiles"
+      requestID: string
+      query: string
     }

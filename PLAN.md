@@ -13,14 +13,19 @@ This work targets two user-visible triggers:
 
 ### Current State
 
-The current panel composer is a single textarea rendered in `src/panel/webview/app/App.tsx`. It supports draft editing, autoresize, and submit with `Cmd/Ctrl+Enter`, but it does not yet support:
+The current panel composer is a textarea-based input rendered in `src/panel/webview/app/App.tsx`. It now supports:
 
-- autocomplete menu state or keyboard navigation
-- slash-command execution
+- shared `/` and `@` autocomplete popup state in the webview
+- keyboard navigation and acceptance for popup items
+- local slash actions for draft-only behavior
+- a typed host-backed slash action path for session refresh
+- temporary composer agent override through `@agent`
+
+The current submit path still only sends plain text plus top-level `agent` and `model` through the bridge and into `rt.sdk.session.promptAsync(...)`, so the following are still not implemented:
+
 - structured prompt parts for file, agent, or resource mentions
 - host-driven search for files or MCP resources
-
-The current submit path only sends plain text plus top-level `agent` and `model` through the bridge and into `rt.sdk.session.promptAsync(...)`.
+- TUI-style slash command execution against a richer command backend
 
 ### Design Principles
 
@@ -59,9 +64,26 @@ Implement the feature in phases so each step is shippable, testable, and honest 
 - Phase 1: completed
 - Phase 2: completed
 - Phase 3: completed
-- Phase 4: not started
-- Phase 5: not started
-- Phase 6: not started
+- Phase 4: completed
+- Phase 5: completed
+- Phase 6: completed
+
+### Latest Progress
+
+- the composer popup is now live for both `/` and `@`
+- menu rows were tightened into a compact single-line layout
+- subtitle text remains visible inline and truncates with ellipsis when space runs out
+- `@agent` updates the visible composer identity and the next submit target
+- slash refresh now runs through a typed host action path instead of a webview-only shortcut
+- composer state now tracks structured `@agent` mentions with stable ranges in the webview
+- submit now carries structured prompt parts across the bridge and into the host SDK path
+- agent mentions survive submit as typed data while plain-text submit remains backward compatible
+- `@file` now issues lazy host-backed workspace search requests and shows ranked file suggestions in the same mention popup
+- selected file suggestions are inserted as tracked composer mentions and submit as typed file parts after host-side path resolution
+- MCP resource suggestions remain hidden because the current runtime surface only exposes MCP status and connect or disconnect actions, not searchable resources
+- popup matching now prefers exact and prefix hits before weaker substring matches, reducing noisy agent and file ordering
+- popup rendering now groups mention results into Agents and Files, shows searching and empty-state copy, and stays readable in narrow panel widths
+- autocomplete now closes more predictably when the cursor moves into the middle of a token or when a text range is selected
 
 ---
 
@@ -239,6 +261,10 @@ This is the phase where the extension starts to converge with the TUI mental mod
 - composer editing remains stable when text around mentions changes
 - the submit path remains backward compatible for plain-text prompts
 
+### Progress
+
+Completed. Phase 4 was implemented by introducing a minimal structured composer mention model in the webview, starting with `@agent` mentions only. The composer now tracks agent mention ranges locally, removes or shifts them as the textarea content changes, and serializes the draft into mixed text and agent prompt parts on submit. The `submit` bridge message now carries structured `parts` alongside the flattened text view, `src/panel/provider/actions.ts` prefers those structured parts when calling `rt.sdk.session.promptAsync(...)`, and `src/core/sdk.ts` now exposes a local prompt-part input union that includes both text and agent parts. Existing plain-text prompts continue to submit through the same path with a text-part fallback.
+
 ---
 
 ## Phase 5 - File Search And Resource Search Providers
@@ -268,6 +294,10 @@ Add the host-backed search sources needed for useful `@file` and `@resource` aut
 - resource suggestions only appear when the runtime can actually provide them
 - search requests do not block normal typing or panel updates
 
+### Progress
+
+Completed. Phase 5 adds a typed query and response path for lazy file lookup between the webview and host, using VS Code workspace search as the compatibility path instead of bloating the session snapshot. The composer now requests ranked file candidates on demand while the mention popup is active, merges those results into the existing `@` menu, and inserts selected files as tracked composer mentions. On submit, the host resolves those relative file paths against the workspace and converts them into SDK file prompt parts with `file://` URLs and source ranges. MCP resource suggestions remain intentionally hidden because the current local runtime surface still only exposes MCP status and connect or disconnect actions, not resource listing or search.
+
 ---
 
 ## Phase 6 - TUI Parity Polish
@@ -289,6 +319,10 @@ Close the remaining UX gap with the upstream TUI once the core behavior is corre
 - menu behavior feels consistent under repeated typing, deletion, and cursor movement
 - grouped results remain readable and keyboard accessible
 - no regression in composer stability or panel responsiveness
+
+### Progress
+
+Completed. Phase 6 refines the popup behavior and presentation without changing the bridge or provider contracts. The autocomplete matcher now closes when the caret sits in the middle of a slash or mention token instead of at its trailing edge, and it also stays closed while a text range is selected, which makes repeated cursor movement and editing more predictable. Filtering now ranks exact and prefix matches ahead of weaker substring hits. In the popup, mention results are grouped into lightweight Agents and Files sections, empty and searching states use more specific copy, and the item layout now uses a compact two-line structure with scrolling and narrow-width adjustments so grouped results remain readable in the session panel.
 
 ---
 

@@ -3,6 +3,10 @@ import { fileURLToPath } from "node:url"
 import * as vscode from "vscode"
 import { postToWebview } from "../../bridge/host"
 
+const FILE_SEARCH_LIMIT = 12
+const FILE_SEARCH_POOL = 200
+const FILE_SEARCH_EXCLUDE = "{**/.git/**,**/node_modules/**,**/dist/**,**/.memory/**,**/opencode/**}"
+
 export async function openFile(workspaceDir: string, filePath: string, line?: number) {
   const target = await resolveFileUri(workspaceDir, filePath)
   if (!target) {
@@ -59,6 +63,36 @@ export async function resolveFileRefs(webview: vscode.Webview, workspaceDir: str
   })
 }
 
+export async function searchFiles(webview: vscode.Webview, workspaceDir: string, requestID: string, query: string) {
+  const value = query.trim()
+  if (!value) {
+    await postToWebview(webview, {
+      type: "fileSearchResults",
+      requestID,
+      query,
+      results: [],
+    })
+    return
+  }
+
+  const base = vscode.Uri.file(workspaceDir)
+  const pattern = new vscode.RelativePattern(base, `**/*${glob(value)}*`)
+  const files = await vscode.workspace.findFiles(pattern, FILE_SEARCH_EXCLUDE, FILE_SEARCH_POOL)
+  const results = files
+    .map((uri) => path.relative(workspaceDir, uri.fsPath).replace(/\\/g, "/"))
+    .filter((item) => item && !item.startsWith(".."))
+    .sort((a, b) => rank(a, value) - rank(b, value) || a.localeCompare(b))
+    .slice(0, FILE_SEARCH_LIMIT)
+    .map((item) => ({ path: item }))
+
+  await postToWebview(webview, {
+    type: "fileSearchResults",
+    requestID,
+    query,
+    results,
+  })
+}
+
 export function toFileUri(filePath: string, workspaceDir: string) {
   if (filePath.startsWith("file://")) {
     try {
@@ -73,4 +107,34 @@ export function toFileUri(filePath: string, workspaceDir: string) {
   }
 
   return vscode.Uri.file(path.join(workspaceDir, filePath))
+}
+
+function rank(filePath: string, query: string) {
+  const file = filePath.toLowerCase()
+  const value = query.trim().toLowerCase()
+  const base = path.basename(file)
+  if (base === value) {
+    return 0
+  }
+  if (file === value) {
+    return 1
+  }
+  if (base.startsWith(value)) {
+    return 2
+  }
+  if (file.startsWith(value)) {
+    return 3
+  }
+  const slash = `/${value}`
+  if (file.includes(slash)) {
+    return 4
+  }
+  if (base.includes(value)) {
+    return 5
+  }
+  return 6
+}
+
+function glob(value: string) {
+  return value.replace(/[{}\[\]*?]/g, "")
 }
