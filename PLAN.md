@@ -225,19 +225,19 @@
 
 当前仍未完成的重点：
 
-- Phase 1 的 webview 结构拆分目标已完成，下一阶段应切换到 Phase 3 的 `src/panel/provider.ts` 拆分
+- Phase 1 的 webview 结构拆分目标已完成；当前剩余重点转为全链路人工回归与文档层收口
 
 建议的后续连续执行顺序：
 
-1. 开始 Phase 3：先从 `src/panel/provider.ts` 抽 `utils.ts`、`mutations.ts`、`navigation.ts`
-2. 再抽 `reducer.ts` 与 `snapshot.ts`，保持 snapshot payload 与 event reduce 结果不变
-3. 最后抽 `actions.ts`、`files.ts` 并收口 `controller.ts` / `index.ts`
+1. 走一次 panel / webview 主链路人工回归
+2. 对照 `PLAN.md` 做最终文档状态收口
+3. 如需继续轻量整理，只做低风险命名与局部 simplify
 
 当前状态判断：
 
 - `src/panel/webview/index.tsx` 的“薄入口”目标已达成
 - `src/panel/webview/app/App.tsx` 已达到顶层 orchestration 为主的目标
-- Phase 1 与 Phase 2 现已完成，可进入 Phase 3 的 panel host 拆分
+- Phase 1、Phase 2、Phase 3 现已完成，运行时代码主拆分目标已达成
 
 已完成拆分阶段均已重复通过：
 
@@ -535,7 +535,7 @@ src/panel/webview/
 
 - `theme.css` 已成为统一 token 层
 - 其他 CSS 文件已主要只消费 `var(--oc-...)`
-- Phase 2 现已完成，可进入 Phase 3 的 `provider.ts` 拆分
+- Phase 2 现已完成，并已为后续 Phase 3 拆分提供稳定前提；当前三阶段运行时代码拆分已全部完成
 
 本阶段已验证通过：
 
@@ -687,6 +687,33 @@ src/panel/webview/
 ---
 
 ## 9. Phase 3：拆分 src/panel/provider.ts
+
+### 9.0 当前进展
+
+当前 Phase 3 已完成，且已落地以下拆分：
+
+- 原 `src/panel/provider.ts` 已收口为目录化结构：`src/panel/provider/index.ts`
+- 已新增 `src/panel/provider/controller.ts`，集中承接 `SessionPanelController`、panel 生命周期、webview message 分发、ready / refresh / active 协调
+- 已新增 `src/panel/provider/snapshot.ts`，集中承接 snapshot 主流程、bootstrap 装配、runtime fallback payload、provider / mcp / lsp 归一化与 summary / patch 逻辑
+- 已新增 `src/panel/provider/reducer.ts`，集中承接 `reduce(payload, event)`、`needsRefresh(event, payload)` 与增量 agent mode 推导
+- 已新增 `src/panel/provider/mutations.ts`，集中承接 message / part / permission / question 的 upsert、remove、delta 和排序纯逻辑
+- 已新增 `src/panel/provider/navigation.ts`，集中承接 related session 收集、child session map、parent / prev / next navigation 与 request 排序逻辑
+- 已新增 `src/panel/provider/actions.ts`，集中承接 submit、permission reply、question reply / reject、MCP connect / disconnect / reconnect
+- 已新增 `src/panel/provider/files.ts`，集中承接 open file、resolve file uri、resolve file refs 与 file path -> uri 转换
+- 已新增 `src/panel/provider/utils.ts`，集中承接 panel key / title / icon、bootstrap shape、text / wait 等无状态 helper
+
+当前状态判断：
+
+- `src/panel/provider/index.ts` 已收口为 manager 入口
+- `src/panel/provider/controller.ts` 已收口为 host orchestration 主体
+- Snapshot payload、HostMessage / WebviewMessage 语义、event reduce 路径保持不变
+- Phase 3 现已完成，下一阶段应转到文档和命名层面的补充收口，以及全链路人工回归确认
+
+本阶段已验证通过：
+
+- `bun run check-types`
+- `bun run lint`
+- `bun run compile`
 
 ### 9.1 目标
 
@@ -918,9 +945,9 @@ bun run test
 
 当前建议接续执行清单：
 
-1. 开始 Phase 3 的 `provider.ts` 拆分
-2. 先抽 `utils.ts`、`mutations.ts`、`navigation.ts`
-3. 再抽 `reducer.ts`、`snapshot.ts`、`actions.ts`、`files.ts`
+1. 进入总体收尾阶段，补文档和命名层面的轻度收口
+2. 做一次 panel / webview 主链路的全链路人工回归
+3. 如无回归，再评估是否需要做额外的局部 simplify
 
 ### 11.3 CSS 细化清单
 
@@ -932,14 +959,14 @@ bun run test
 
 ### 11.4 provider.ts 细化清单
 
-1. 抽 `utils.ts`
-2. 抽 `mutations.ts`
-3. 抽 `navigation.ts`
-4. 抽 `reducer.ts`
-5. 抽 `snapshot.ts`
-6. 抽 `actions.ts`
-7. 抽 `files.ts`
-8. 收口 `controller.ts` 与 `index.ts`
+1. 抽 `utils.ts` - 已完成
+2. 抽 `mutations.ts` - 已完成
+3. 抽 `navigation.ts` - 已完成
+4. 抽 `reducer.ts` - 已完成
+5. 抽 `snapshot.ts` - 已完成
+6. 抽 `actions.ts` - 已完成
+7. 抽 `files.ts` - 已完成
+8. 收口 `controller.ts` 与 `index.ts` - 已完成
 
 ---
 
