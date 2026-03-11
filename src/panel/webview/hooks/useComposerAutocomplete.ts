@@ -10,7 +10,7 @@ export type ComposerAutocompleteItem = {
   detail: string
   keywords?: string[]
   trigger: ComposerAutocompleteTrigger
-  kind: "action" | "agent" | "selection" | "recent" | "file" | "directory"
+  kind: "action" | "agent" | "resource" | "selection" | "recent" | "file" | "directory"
   match?: {
     label: number[]
     detail: number[]
@@ -23,6 +23,12 @@ export type ComposerAutocompleteItem = {
     path: string
     kind?: ComposerPathKind
     selection?: import("../../../bridge/types").ComposerFileSelection
+  } | {
+    type: "resource"
+    uri: string
+    name: string
+    clientName: string
+    mimeType?: string
   }) & {
     content: string
   }
@@ -46,6 +52,19 @@ type ComposerAutocompleteMatch = {
 
 export function useComposerAutocomplete(sources: ComposerAutocompleteItem[]) {
   const [state, setState] = React.useState<ComposerAutocompleteState | null>(null)
+
+  // When sources change (e.g. file search results arrive), re-filter the current
+  // query so the popup updates without requiring another keystroke.
+  React.useEffect(() => {
+    setState((current) => {
+      if (!current) {
+        return current
+      }
+      const items = filterItems(sources, current.trigger, current.query)
+      const selectedIndex = items.length === 0 ? 0 : Math.min(current.selectedIndex, items.length - 1)
+      return { ...current, items, selectedIndex }
+    })
+  }, [sources])
 
   const sync = React.useCallback((value: string, start: number | null | undefined, end?: number | null | undefined) => {
     const next = matchAutocomplete(value, start, end)
@@ -103,7 +122,7 @@ export function useComposerAutocomplete(sources: ComposerAutocompleteItem[]) {
   }
 }
 
-function matchAutocomplete(value: string, start: number | null | undefined, end?: number | null | undefined): ComposerAutocompleteMatch | null {
+export function matchAutocomplete(value: string, start: number | null | undefined, end?: number | null | undefined): ComposerAutocompleteMatch | null {
   if (typeof start !== "number") {
     return null
   }
@@ -178,7 +197,7 @@ function matchMention(value: string, cursor: number): ComposerAutocompleteMatch 
   return null
 }
 
-function filterItems(items: ComposerAutocompleteItem[], trigger: ComposerAutocompleteTrigger, query: string) {
+export function filterItems(items: ComposerAutocompleteItem[], trigger: ComposerAutocompleteTrigger, query: string) {
   const source = items.filter((item) => item.trigger === trigger)
   const normalized = query.trim().toLowerCase()
   if (!normalized) {
@@ -234,11 +253,13 @@ function kindRank(kind: ComposerAutocompleteItem["kind"]) {
       return 1
     case "selection":
       return 2
-    case "recent":
+    case "resource":
       return 3
+    case "recent":
+      return 4
     case "file":
     case "directory":
-      return 4
+      return 5
   }
 }
 

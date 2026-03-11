@@ -204,6 +204,22 @@ async function toPromptParts(workspaceDir: string, textValue: string, parts?: Co
       continue
     }
 
+    if (part.type === "resource") {
+      out.push({
+        type: "file",
+        mime: part.mimeType ?? "text/plain",
+        filename: part.name,
+        url: part.uri,
+        source: {
+          type: "resource",
+          uri: part.uri,
+          clientName: part.clientName,
+          text: part.source,
+        },
+      })
+      continue
+    }
+
     const resolved = await resolvePromptPath(workspaceDir, part.path)
     if (!resolved) {
       continue

@@ -30,7 +30,20 @@ export function buildComposerSubmitParts(value: string, mentions: ComposerMentio
             end: item.end,
           },
         }
-      : {
+      : item.type === "resource"
+        ? {
+            type: "resource",
+            uri: item.uri,
+            name: item.name,
+            clientName: item.clientName,
+            mimeType: item.mimeType,
+            source: {
+              value: item.content,
+              start: item.start,
+              end: item.end,
+            },
+          }
+        : {
           type: "file",
           path: item.path,
           kind: item.kind,
@@ -67,6 +80,17 @@ export function insertComposerMention(value: string, mentions: ComposerMention[]
           start,
           end: start + mention.content.length,
         }
+      : mention.type === "resource"
+        ? {
+            type: "resource" as const,
+            uri: mention.uri,
+            name: mention.name,
+            clientName: mention.clientName,
+            mimeType: mention.mimeType,
+            content: mention.content,
+            start,
+            end: start + mention.content.length,
+          }
       : {
           type: "file" as const,
           path: mention.path,

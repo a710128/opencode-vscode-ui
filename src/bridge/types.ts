@@ -1,4 +1,4 @@
-import type { AgentInfo, FileDiff, LspStatus, McpStatus, PermissionRequest, PromptSource, ProviderInfo, QuestionRequest, SessionInfo, SessionMessage, SessionStatus, Todo } from "../core/sdk"
+import type { AgentInfo, FileDiff, LspStatus, McpResource, McpStatus, PermissionRequest, PromptSource, ProviderInfo, QuestionRequest, SessionInfo, SessionMessage, SessionStatus, Todo } from "../core/sdk"
 
 export const SESSION_PANEL_VIEW_TYPE = "opencode-ui.session"
 
@@ -36,6 +36,7 @@ export type SessionSnapshot = SessionBootstrap & {
     modelID: string
   }
   mcp: Record<string, McpStatus>
+  mcpResources: Record<string, McpResource>
   lsp: LspStatus[]
   relatedSessionIds: string[]
   agentMode: "build" | "plan"
@@ -108,6 +109,14 @@ export type ComposerPromptPart =
       path: string
       kind?: ComposerPathKind
       selection?: ComposerFileSelection
+      source: PromptSource
+    }
+  | {
+      type: "resource"
+      uri: string
+      name: string
+      clientName: string
+      mimeType?: string
       source: PromptSource
     }
 

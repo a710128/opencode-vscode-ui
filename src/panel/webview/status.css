@@ -85,6 +85,10 @@
   border-color: color-mix(in srgb, var(--oc-info) 40%, var(--oc-border-strong) 60%);
 }
 
+.oc-composerPill.is-resource {
+  border-color: color-mix(in srgb, var(--oc-warning) 42%, var(--oc-border-strong) 58%);
+}
+
 .oc-composerAutocomplete {
   position: absolute;
   left: 0;

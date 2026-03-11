@@ -116,6 +116,14 @@ export type McpStatus =
   | { status: "needs_auth"; error?: string }
   | { status: "needs_client_registration"; error?: string }
 
+export type McpResource = {
+  name: string
+  uri: string
+  description?: string
+  mimeType?: string
+  client: string
+}
+
 export type LspStatus = {
   id: string
   name: string
@@ -174,6 +182,11 @@ export type PromptFilePartInput = {
   source?: {
     type: "file"
     path: string
+    text: PromptSource
+  } | {
+    type: "resource"
+    uri: string
+    clientName: string
     text: PromptSource
   }
 }
@@ -374,6 +387,14 @@ export type Client = {
       directory?: string
       workspace?: string
     }): Promise<{ data?: boolean }>
+  }
+  experimental: {
+    resource: {
+      list(input?: {
+        directory?: string
+        workspace?: string
+      }): Promise<{ data?: Record<string, McpResource> }>
+    }
   }
   lsp: {
     status(input?: {

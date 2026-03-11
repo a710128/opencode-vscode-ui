@@ -1,5 +1,5 @@
 import type { ComposerFileSelection, ComposerPathKind, SessionBootstrap, SessionSnapshot } from "../../../bridge/types"
-import type { AgentInfo, FileDiff, LspStatus, McpStatus, PermissionRequest, ProviderInfo, QuestionRequest, SessionInfo, SessionMessage, SessionStatus, Todo } from "../../../core/sdk"
+import type { AgentInfo, FileDiff, LspStatus, McpResource, McpStatus, PermissionRequest, ProviderInfo, QuestionRequest, SessionInfo, SessionMessage, SessionStatus, Todo } from "../../../core/sdk"
 
 export type VsCodeApi = {
   postMessage(message: unknown): void
@@ -26,6 +26,12 @@ export type ComposerMention = ({
   path: string
   kind?: ComposerPathKind
   selection?: ComposerFileSelection
+} | {
+  type: "resource"
+  uri: string
+  name: string
+  clientName: string
+  mimeType?: string
 }) & ComposerMentionBase
 
 export type ComposerEditorPart = ({
@@ -40,6 +46,13 @@ export type ComposerEditorPart = ({
   path: string
   kind?: ComposerPathKind
   selection?: ComposerFileSelection
+  content: string
+} | {
+  type: "resource"
+  uri: string
+  name: string
+  clientName: string
+  mimeType?: string
   content: string
 }) & ComposerMentionBase
 
@@ -64,6 +77,7 @@ export type AppState = {
       modelID: string
     }
     mcp: Record<string, McpStatus>
+    mcpResources: Record<string, McpResource>
     lsp: LspStatus[]
     agentMode: "build" | "plan"
     navigation: {
@@ -104,6 +118,7 @@ export function createInitialState(initialRef: SessionBootstrap["sessionRef"] | 
       providerDefault: undefined,
       configuredModel: undefined,
       mcp: {},
+      mcpResources: {},
       lsp: [],
       agentMode: "build",
       navigation: {},
@@ -148,6 +163,7 @@ export function normalizeSnapshotPayload(payload: SessionSnapshot): AppState["sn
     providerDefault: payload.providerDefault,
     configuredModel: payload.configuredModel,
     mcp: recordValue(payload.mcp) as Record<string, McpStatus>,
+    mcpResources: recordValue(payload.mcpResources) as Record<string, McpResource>,
     lsp: Array.isArray(payload.lsp) ? payload.lsp : [],
     agentMode: payload.agentMode === "plan" ? "plan" : "build",
     navigation: payload.navigation || {},

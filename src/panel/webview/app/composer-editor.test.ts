@@ -64,6 +64,28 @@ describe("composer editor parts", () => {
     }])
   })
 
+  test("preserves resource metadata on insertion", () => {
+    const next = replaceRangeWithMention([{ type: "text", content: "use @do", start: 0, end: 7 }], 4, 7, {
+      type: "resource",
+      uri: "mcp://docs/reference",
+      name: "docs",
+      clientName: "reference",
+      mimeType: "text/markdown",
+      content: "@docs",
+    })
+
+    assert.deepEqual(composerMentions(next.parts), [{
+      type: "resource",
+      uri: "mcp://docs/reference",
+      name: "docs",
+      clientName: "reference",
+      mimeType: "text/markdown",
+      content: "@docs",
+      start: 4,
+      end: 9,
+    }])
+  })
+
   test("absorbs a typed line range after an existing file token once delimited", () => {
     const next = absorbFileSelectionSuffix([
       { type: "file", path: "src/app.ts", kind: "file", content: "@src/app.ts", start: 0, end: 11 },

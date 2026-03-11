@@ -1,6 +1,6 @@
 import * as path from "node:path"
 import type { SessionPanelRef, SessionSnapshot } from "../../bridge/types"
-import type { AgentInfo, Client, FileDiff, LspStatus, McpStatus, ProviderInfo, SessionMessage } from "../../core/sdk"
+import type { AgentInfo, Client, FileDiff, LspStatus, McpResource, McpStatus, ProviderInfo, SessionMessage } from "../../core/sdk"
 import { WorkspaceManager } from "../../core/workspace"
 import { collectRelatedSessionIds, filterPermission, filterQuestion, nav, relatedSessionMap } from "./navigation"
 import { sortMessages } from "./mutations"
@@ -36,7 +36,7 @@ export async function buildSessionSnapshot({ ref, mgr, log, isSubmitting }: Snap
   }
 
   try {
-    const [sessionRes, sessionsRes, rootMessageRes, statusRes, todoRes, diffRes, permissionRes, questionRes, configRes, configProvidersRes, agentRes, providerRes, mcpRes, lspRes] = await Promise.all([
+    const [sessionRes, sessionsRes, rootMessageRes, statusRes, todoRes, diffRes, permissionRes, questionRes, configRes, configProvidersRes, agentRes, providerRes, mcpRes, resourceRes, lspRes] = await Promise.all([
       rt.sdk.session.get({
         sessionID: ref.sessionId,
         directory: rt.dir,
@@ -75,6 +75,7 @@ export async function buildSessionSnapshot({ ref, mgr, log, isSubmitting }: Snap
       rt.sdk.mcp.status({
         directory: rt.dir,
       }),
+      experimentalResources(rt.sdk, rt.dir),
       rt.sdk.lsp.status({
         directory: rt.dir,
       }),
@@ -130,6 +131,7 @@ export async function buildSessionSnapshot({ ref, mgr, log, isSubmitting }: Snap
       providerDefault: defaults,
       configuredModel,
       mcp: mcpStatusMap(mcpRes.data),
+      mcpResources: mcpResourceMap(resourceRes.data),
       lsp: lspStatuses(lspRes.data ?? [], rt.dir),
       relatedSessionIds,
       agentMode: agentMode(messages),
@@ -207,6 +209,7 @@ function fallbackSnapshot(
     providerDefault: undefined,
     configuredModel: undefined,
     mcp: {},
+    mcpResources: {},
     lsp: [],
     relatedSessionIds: [ref.sessionId],
     agentMode: "build",
@@ -295,6 +298,17 @@ async function agentInfo(sdk: Client, directory: string) {
   return agents({ directory }) as Promise<{ data?: AgentInfo[] }>
 }
 
+async function experimentalResources(sdk: Client, directory: string) {
+  const experimental = readSdkMember(sdk, "experimental")
+  const resource = readSdkMember(experimental ?? {}, "resource")
+  const list = readSdkMethod(resource, "list")
+  if (!list) {
+    return { data: undefined as Record<string, McpResource> | undefined }
+  }
+
+  return list({ directory }) as Promise<{ data?: Record<string, McpResource> }>
+}
+
 function readSdkMember(target: object, key: string) {
   const value = Reflect.get(target, key)
   return value && typeof value === "object" ? value as Record<string, unknown> : undefined
@@ -312,6 +326,10 @@ function modelLabel(model?: { providerID: string; modelID: string }) {
 }
 
 function mcpStatusMap(data?: Record<string, McpStatus>) {
+  return data && typeof data === "object" ? data : {}
+}
+
+function mcpResourceMap(data?: Record<string, McpResource>) {
   return data && typeof data === "object" ? data : {}
 }
 

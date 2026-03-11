@@ -46,6 +46,8 @@ export function composerMentions(parts: ComposerEditorPart[]): ComposerMention[]
       ? [{ type: "agent", name: part.name, content: part.content, start: part.start, end: part.end }]
       : part.type === "file"
         ? [{ type: "file", path: part.path, kind: part.kind, selection: part.selection, content: part.content, start: part.start, end: part.end }]
+        : part.type === "resource"
+          ? [{ type: "resource", uri: part.uri, name: part.name, clientName: part.clientName, mimeType: part.mimeType, content: part.content, start: part.start, end: part.end }]
         : [])
 }
 
@@ -67,14 +69,20 @@ export function composerPartsEqual(a: ComposerEditorPart[], b: ComposerEditorPar
     if (part.type === "file" && other.type === "file") {
       return part.path === other.path && part.kind === other.kind && part.selection?.startLine === other.selection?.startLine && part.selection?.endLine === other.selection?.endLine
     }
+    if (part.type === "resource" && other.type === "resource") {
+      return part.uri === other.uri && part.name === other.name && part.clientName === other.clientName && part.mimeType === other.mimeType
+    }
     return part.type === "text" && other.type === "text"
   })
 }
 
 export function replaceRangeWithMention(parts: ComposerEditorPart[], start: number, end: number, mention: NonNullable<ComposerAutocompleteItem["mention"]>) {
-  const next = replaceRange(parts, start, end, mention.type === "agent"
+  const insert: ComposerEditorPart[] = mention.type === "agent"
     ? [{ type: "agent", name: mention.name, content: mention.content, start: 0, end: 0 }, { type: "text", content: " ", start: 0, end: 0 }]
-    : [{ type: "file", path: mention.path, kind: mention.kind, selection: mention.selection, content: mention.content, start: 0, end: 0 }, { type: "text", content: " ", start: 0, end: 0 }])
+    : mention.type === "resource"
+      ? [{ type: "resource", uri: mention.uri, name: mention.name, clientName: mention.clientName, mimeType: mention.mimeType, content: mention.content, start: 0, end: 0 }, { type: "text", content: " ", start: 0, end: 0 }]
+      : [{ type: "file", path: mention.path, kind: mention.kind, selection: mention.selection, content: mention.content, start: 0, end: 0 }, { type: "text", content: " ", start: 0, end: 0 }]
+  const next = replaceRange(parts, start, end, insert)
 
   return {
     parts: next,

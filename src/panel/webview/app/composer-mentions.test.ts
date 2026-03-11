@@ -80,6 +80,35 @@ describe("composer mention syncing", () => {
       },
     ])
   })
+
+  test("submit parts preserve resource metadata", () => {
+    const parts = buildComposerSubmitParts("use @docs", [{
+      type: "resource",
+      uri: "mcp://docs/reference",
+      name: "docs",
+      clientName: "reference",
+      mimeType: "text/markdown",
+      content: "@docs",
+      start: 4,
+      end: 9,
+    }])
+
+    assert.deepEqual(parts, [
+      { type: "text", text: "use @docs" },
+      {
+        type: "resource",
+        uri: "mcp://docs/reference",
+        name: "docs",
+        clientName: "reference",
+        mimeType: "text/markdown",
+        source: {
+          value: "@docs",
+          start: 4,
+          end: 9,
+        },
+      },
+    ])
+  })
 })
 
 describe("composer mention deletion", () => {

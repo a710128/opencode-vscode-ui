@@ -35,7 +35,11 @@
     "package": "bun run check-types && bun run lint && node esbuild.js --production",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "echo 'No tests yet'"
+    "test": "echo 'No tests yet'",
+    "parity:composer": "bun test src/test/parity/composer-parity.test.ts",
+    "parity:integration": "bun test src/test/parity/composer-integration.test.ts",
+    "parity:upstream": "bun run src/test/parity/check-upstream-parity.ts",
+    "parity:upstream:golden": "bun run src/test/parity/generate-upstream-golden.ts"
   },
   "dependencies": {
     "@opencode-ai/sdk": "1.2.21",

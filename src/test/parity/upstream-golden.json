@@ -1,0 +1,157 @@
+[
+  {
+    "name": "web slash basic",
+    "target": "web",
+    "trigger": "slash",
+    "query": "re",
+    "items": [
+      {
+        "kind": "custom",
+        "label": "/review",
+        "detail": "Review prompt",
+        "insertText": "/review "
+      },
+      {
+        "kind": "builtin",
+        "label": "/refresh",
+        "detail": "Reload session"
+      },
+      {
+        "kind": "builtin",
+        "label": "/reset-agent",
+        "detail": "Reset agent"
+      }
+    ],
+    "accepted": {
+      "draft": "/review "
+    }
+  },
+  {
+    "name": "web mention directory and recents",
+    "target": "web",
+    "trigger": "mention",
+    "query": "panel/we",
+    "items": [
+      {
+        "kind": "directory",
+        "label": "src/panel/webview/",
+        "detail": "src/panel/webview/",
+        "insertText": "@src/panel/webview/"
+      },
+      {
+        "kind": "directory",
+        "label": "src/panel/webview/app/",
+        "detail": "src/panel/webview/app/",
+        "insertText": "@src/panel/webview/app/"
+      }
+    ],
+    "accepted": {
+      "draft": "@src/panel/webview/ ",
+      "submitParts": [
+        {
+          "type": "text",
+          "text": "@src/panel/webview/ "
+        },
+        {
+          "type": "file",
+          "path": "src/panel/webview/",
+          "kind": "directory",
+          "source": {
+            "value": "@src/panel/webview/",
+            "start": 0,
+            "end": 19
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "tui mention resource empty",
+    "target": "tui",
+    "trigger": "mention",
+    "query": "",
+    "items": [
+      {
+        "kind": "agent",
+        "label": "@helper",
+        "detail": "",
+        "insertText": "@helper"
+      },
+      {
+        "kind": "agent",
+        "label": "@build",
+        "detail": "",
+        "insertText": "@build"
+      },
+      {
+        "kind": "file",
+        "label": "@README.md",
+        "detail": "README.md",
+        "insertText": "@README.md"
+      },
+      {
+        "kind": "directory",
+        "label": "@src/panel/webview/",
+        "detail": "src/panel/webview/",
+        "insertText": "@src/panel/webview/"
+      },
+      {
+        "kind": "resource",
+        "label": "@docs",
+        "detail": "docs (mcp://docs/reference)",
+        "insertText": "@docs"
+      }
+    ],
+    "accepted": {
+      "draft": "@helper ",
+      "submitParts": [
+        {
+          "type": "text",
+          "text": "@helper "
+        },
+        {
+          "type": "agent",
+          "name": "helper",
+          "source": {
+            "value": "@helper",
+            "start": 0,
+            "end": 7
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "tui mention file range and directory",
+    "target": "tui",
+    "trigger": "mention",
+    "query": "src/panel/webview/app/App.tsx#12-20",
+    "items": [
+      {
+        "kind": "file",
+        "label": "@src/panel/webview/app/App.tsx#12-20",
+        "detail": "src/panel/webview/app/App.tsx",
+        "insertText": "@src/panel/webview/app/App.tsx#12-20"
+      }
+    ],
+    "accepted": {
+      "draft": "@src/panel/webview/app/App.tsx#12-20 ",
+      "submitParts": [
+        {
+          "type": "text",
+          "text": "@src/panel/webview/app/App.tsx#12-20 "
+        },
+        {
+          "type": "file",
+          "path": "src/panel/webview/app/App.tsx#12-20",
+          "kind": "file",
+          "source": {
+            "value": "@src/panel/webview/app/App.tsx#12-20",
+            "start": 0,
+            "end": 36
+          }
+        }
+      ]
+    }
+  }
+]

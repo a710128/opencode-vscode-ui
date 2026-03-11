@@ -101,6 +101,22 @@ export function parseComposerEditor(root: HTMLElement): ComposerEditorPart[] {
       position += content.length
       return
     }
+    if (el.dataset.type === "resource") {
+      flushText()
+      const content = el.textContent ?? ""
+      parts.push({
+        type: "resource",
+        uri: el.dataset.uri || "",
+        name: el.dataset.name || content.slice(1),
+        clientName: el.dataset.clientName || "",
+        mimeType: el.dataset.mimeType || undefined,
+        content,
+        start: position,
+        end: position + content.length,
+      })
+      position += content.length
+      return
+    }
     if (el.tagName === "BR") {
       buffer += "\n"
       return
@@ -189,7 +205,7 @@ export function setCursorPosition(root: HTMLElement, position: number) {
   while (node) {
     const length = getNodeLength(node)
     const isText = node.nodeType === Node.TEXT_NODE
-    const isPill = node.nodeType === Node.ELEMENT_NODE && ((node as HTMLElement).dataset.type === "file" || (node as HTMLElement).dataset.type === "agent")
+    const isPill = node.nodeType === Node.ELEMENT_NODE && ((node as HTMLElement).dataset.type === "file" || (node as HTMLElement).dataset.type === "agent" || (node as HTMLElement).dataset.type === "resource")
     const isBreak = node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === "BR"
 
     if (isText && remaining <= length) {
@@ -228,7 +244,7 @@ export function setCursorPosition(root: HTMLElement, position: number) {
   selection?.addRange(range)
 }
 
-function createPill(part: Extract<ComposerEditorPart, { type: "agent" | "file" }>) {
+function createPill(part: Extract<ComposerEditorPart, { type: "agent" | "file" | "resource" }>) {
   const pill = document.createElement("span")
   pill.className = `oc-composerPill is-${part.type}`
   pill.dataset.type = part.type
@@ -246,6 +262,14 @@ function createPill(part: Extract<ComposerEditorPart, { type: "agent" | "file" }
       if (part.selection.endLine) {
         pill.dataset.endLine = String(part.selection.endLine)
       }
+    }
+  }
+  if (part.type === "resource") {
+    pill.dataset.uri = part.uri
+    pill.dataset.name = part.name
+    pill.dataset.clientName = part.clientName
+    if (part.mimeType) {
+      pill.dataset.mimeType = part.mimeType
     }
   }
   pill.textContent = part.content

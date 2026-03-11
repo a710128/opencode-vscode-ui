@@ -11,11 +11,12 @@ import { useComposerAutocomplete, type ComposerAutocompleteItem, type ComposerAu
 import { useHostMessages } from "../hooks/useHostMessages"
 import { useModifierState } from "../hooks/useModifierState"
 import { useTimelineScroll } from "../hooks/useTimelineScroll"
-import { describeComposerFileSelection, formatComposerFileContent, formatComposerFileDisplay, parseComposerFileQuery } from "../lib/composer-file-selection"
+import { formatComposerFileContent, parseComposerFileQuery } from "../lib/composer-file-selection"
 import { agentColor, composerIdentity, composerMetrics, composerSelection, formatUsd, isSessionRunning, overallLspStatus, overallMcpStatus, sessionTitle, type StatusItem, type StatusTone } from "../lib/session-meta"
 import { buildComposerSubmitParts, composerAgentOverride } from "./composer-mentions"
 import { absorbFileSelectionSuffix, composerMentions as mentionsFromParts, composerPartsEqual, composerText, deleteStructuredRange, emptyComposerParts, ensureTextPart, replaceRangeWithMention, replaceRangeWithText } from "./composer-editor"
 import { getSelectionOffsets, parseComposerEditor, renderComposerEditor, setCursorPosition } from "./composer-editor-dom"
+import { autocompleteItemView, buildComposerMenuItems, mentionForQuery } from "./composer-menu"
 
 declare global {
   interface Window {
@@ -78,15 +79,18 @@ export function App() {
     document.title = `OpenCode: ${sessionTitle(state.bootstrap)}`
   }, [state.bootstrap])
 
+  const autocompleteTrigger = composerAutocomplete.state?.trigger ?? null
+  const autocompleteQuery = composerAutocomplete.state?.query ?? null
+
   React.useEffect(() => {
-    if (composerAutocomplete.state?.trigger !== "mention") {
+    if (autocompleteTrigger !== "mention" || autocompleteQuery === null) {
       searchRef.current = null
       setFileResults([])
       setFileSearch({ status: "idle", query: "" })
       return
     }
 
-    const query = parseComposerFileQuery(composerAutocomplete.state.query.trim()).baseQuery.trim()
+    const query = parseComposerFileQuery(autocompleteQuery.trim()).baseQuery.trim()
 
     const requestID = `file-search:${Date.now()}:${query}`
     searchRef.current = { requestID, query }
@@ -100,7 +104,7 @@ export function App() {
     }, FILE_SEARCH_DEBOUNCE_MS)
 
     return () => window.clearTimeout(timer)
-  }, [composerAutocomplete.state])
+  }, [autocompleteTrigger, autocompleteQuery])
 
   const setComposerState = React.useCallback((parts: ComposerEditorPart[], error = "", allowTerminal = false) => {
     const composerParts = ensureTextPart(absorbFileSelectionSuffix(parts, allowTerminal).parts)
@@ -647,7 +651,7 @@ function popupHeaderText(state: ComposerAutocompleteState, fileSearch: { status:
 
   const query = parseComposerFileQuery(state.query).baseQuery.trim()
   if (!state.query) {
-    return "Agents, selected lines, and recent files"
+    return "Agents, resources, selected lines, and recent files"
   }
 
   if (fileSearch.status === "searching" && fileSearch.query === query) {
@@ -664,7 +668,7 @@ function popupEmptyText(state: ComposerAutocompleteState, fileSearch: { status: 
 
   const query = parseComposerFileQuery(state.query).baseQuery.trim()
   if (!state.query) {
-    return "Type an agent name, file path, or path#12-20"
+    return "Type an agent, resource, file path, or path#12-20"
   }
 
   if (fileSearch.status === "searching" && fileSearch.query === query) {
@@ -690,101 +694,6 @@ function ComposerInfo({ state }: { state: AppState }) {
       </div>
     </div>
   )
-}
-
-function buildComposerMenuItems(state: AppState, files: ComposerPathResult[]): ComposerAutocompleteItem[] {
-  const slashItems: ComposerAutocompleteItem[] = [
-    {
-      id: "slash-refresh",
-      label: "refresh",
-      detail: "Ask the host to reload the current session snapshot.",
-      keywords: ["reload", "snapshot", "panel", "host"],
-      trigger: "slash",
-      kind: "action",
-    },
-    {
-      id: "slash-clear",
-      label: "clear",
-      detail: "Clear the current composer draft locally.",
-      keywords: ["reset", "draft", "composer"],
-      trigger: "slash",
-      kind: "action",
-    },
-  ]
-
-  if (state.composerAgentOverride) {
-    slashItems.push({
-      id: "slash-reset-agent",
-      label: "reset-agent",
-      detail: "Return the composer to the default agent selection.",
-      keywords: ["agent", "default", "override"],
-      trigger: "slash",
-      kind: "action",
-    })
-  }
-
-  const agentItems = state.snapshot.agents.map((agent) => ({
-    id: `agent:${agent.name}`,
-    label: agent.name,
-    detail: agent.mode === "subagent" ? "Subagent" : agent.mode === "primary" ? "Primary agent" : "Agent",
-    keywords: [agent.mode, agent.variant ?? ""].filter(Boolean),
-    trigger: "mention" as const,
-    kind: "agent" as const,
-    mention: {
-      type: "agent" as const,
-      name: agent.name,
-      content: `@${agent.name}`,
-    },
-  }))
-
-  const fileItems = files.map((item) => ({
-    id: `${item.source}:${item.kind}:${item.path}:${item.selection?.startLine ?? ""}:${item.selection?.endLine ?? ""}`,
-    label: item.kind === "directory" ? `${item.path.split("/").filter(Boolean).pop() || item.path}/` : item.path.split("/").pop() || item.path,
-    detail: item.source === "selection" ? describeComposerFileSelection(item.selection) || item.path : item.path,
-    keywords: item.path.split("/").filter(Boolean).concat(item.source, item.kind, item.selection ? [String(item.selection.startLine), String(item.selection.endLine ?? "")] : []),
-    trigger: "mention" as const,
-    kind: item.source === "selection" ? "selection" as const : item.source === "recent" ? "recent" as const : item.kind === "directory" ? "directory" as const : "file" as const,
-    mention: {
-      type: "file" as const,
-      path: item.path,
-      kind: item.kind,
-      selection: item.selection,
-      content: formatComposerFileContent(item.path, item.selection),
-    },
-  }))
-
-  return [...slashItems, ...agentItems, ...fileItems]
-}
-
-function mentionForQuery(mention: Extract<NonNullable<ComposerAutocompleteItem["mention"]>, { type: "file" }>, query: string): Extract<NonNullable<ComposerAutocompleteItem["mention"]>, { type: "file" }> {
-  const parsed = parseComposerFileQuery(query)
-  if (!parsed.selection || mention.kind === "directory" || mention.selection) {
-    return mention
-  }
-
-  return {
-    ...mention,
-    selection: parsed.selection,
-    content: formatComposerFileContent(mention.path, parsed.selection),
-  }
-}
-
-function autocompleteItemView(query: string, item: ComposerAutocompleteItem) {
-  const mention = item.mention
-  if (!mention || mention.type !== "file") {
-    return { label: item.label, detail: item.detail, kind: item.kind }
-  }
-
-  const next = mentionForQuery(mention, query)
-  const label = next.selection
-    ? formatComposerFileDisplay(item.label, next.selection)
-    : item.label
-  const detail = item.kind === "selection"
-    ? `${mention.path}${next.selection ? ` - ${describeComposerFileSelection(next.selection)}` : ""}`
-    : item.detail === mention.path && next.selection
-      ? formatComposerFileDisplay(item.detail, next.selection)
-      : item.detail
-  return { label, detail, kind: item.kind }
 }
 
 function supportsComposerDrop(data: DataTransfer | null) {

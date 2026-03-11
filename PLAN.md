@@ -303,6 +303,8 @@ Close surrounding `@file` affordance gaps beyond plain keyboard search.
 
 ## Phase G - Revisit MCP Resource Mentions Separately
 
+Status: completed
+
 ### Objective
 
 Only add `@resource` behavior when the runtime exposes a real list or search surface.
@@ -317,6 +319,13 @@ Only add `@resource` behavior when the runtime exposes a real list or search sur
 
 - MCP resource suggestions do not appear until the runtime can truly serve them
 - if implemented, MCP resources follow the same submit semantics as files and agents
+
+### Progress
+
+- completed after confirming the upstream runtime already exposes `experimental.resource.list`, so the extension now surfaces MCP resources only when the SDK can actually provide them
+- session snapshots now carry MCP resource inventory separately from MCP connection status, and composer autocomplete merges those resources into `@` results alongside agents and file-oriented entries
+- selecting an MCP resource now inserts an atomic structured resource mention in the composer and submits it as a `file` prompt part with upstream-style `source.type = resource` metadata instead of pretending it is a local workspace path
+- regression coverage now includes resource mention serialization and structured editor metadata preservation
 
 ---
 
