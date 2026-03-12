@@ -109,9 +109,8 @@ function copyText(value: string) {
   }
   const input = document.createElement("textarea")
   input.value = value
+  input.className = "oc-copyScratchpad"
   input.setAttribute("readonly", "true")
-  input.style.position = "absolute"
-  input.style.left = "-9999px"
   document.body.appendChild(input)
   input.select()
   document.execCommand("copy")

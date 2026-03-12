@@ -17,7 +17,7 @@ export function renderMarkdownCodeWindow(value: string, language: string) {
   const lang = normalizeCodeLanguage(language)
   const title = lang ? capitalize(lang) : "Code"
   const lines = codeWindowRows(value, lang)
-  const gutter = codeWindowGutter(value)
+  const gutterDigits = codeWindowGutterDigits(value)
   return [
     '<section class="oc-outputWindow oc-outputWindow-markdownCode">',
     '<div class="oc-outputWindowHead">',
@@ -36,7 +36,7 @@ export function renderMarkdownCodeWindow(value: string, language: string) {
     '</div>',
     '<div class="oc-outputWindowBody">',
     '<div class="oc-outputWindowBodyInner">',
-    `<pre class="oc-codeWindowBody" style="--oc-codeWindow-gutter:${gutter}"><code class="oc-codeWindowText">`,
+    `<pre class="oc-codeWindowBody oc-codeWindowBody-gutter-${gutterDigits}"><code class="oc-codeWindowText">`,
     lines,
     '</code></pre>',
     '</div>',
@@ -78,8 +78,8 @@ function normalizedLines(value: string) {
   return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n")
 }
 
-function codeWindowGutter(value: string) {
-  return `calc(${Math.max(String(normalizedLines(value).length).length, 2)}ch + 12px)`
+function codeWindowGutterDigits(value: string) {
+  return Math.min(Math.max(String(normalizedLines(value).length).length, 2), 6)
 }
 
 function escapeAttribute(value: string) {

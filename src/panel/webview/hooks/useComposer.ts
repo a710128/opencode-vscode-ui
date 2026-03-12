@@ -20,14 +20,6 @@ export function resizeComposer(node: HTMLElement | null) {
   if (!node) {
     return
   }
-
-  node.style.height = "auto"
-  const maxHeight = Math.max(120, Math.floor(window.innerHeight * 0.5))
-  const style = window.getComputedStyle(node)
-  const minHeight = Number.parseFloat(style.minHeight) || 0
-  const next = Math.min(Math.max(node.scrollHeight, minHeight), maxHeight)
-  node.style.height = `${next}px`
-  node.style.overflowY = node.scrollHeight > maxHeight ? "auto" : "hidden"
 }
 
 export function ensureComposerCursorVisible(node: HTMLElement | null) {

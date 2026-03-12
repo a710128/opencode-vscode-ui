@@ -504,10 +504,18 @@
 
 .oc-outputWindowBody.is-collapsed {
   overflow: hidden;
+  max-height: 222px;
 }
 
 .oc-outputWindowBody.is-scrollable {
   overflow-y: auto;
+  max-height: 2004px;
+}
+
+.oc-copyScratchpad {
+  position: absolute;
+  left: -9999px;
+  top: 0;
 }
 
 .oc-outputWindowContent,

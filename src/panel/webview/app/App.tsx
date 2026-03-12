@@ -7,12 +7,12 @@ import { createInitialState, persistableAppState, type AppState, type ComposerEd
 import { Timeline } from "./timeline"
 import { AgentBadge, CompactionDivider, EmptyState, MarkdownBlock, PartView, WebviewBindingsProvider } from "./webview-bindings"
 import { ensureComposerCursorVisible, resizeComposer, useComposerResize } from "../hooks/useComposer"
-import { useComposerAutocomplete, type ComposerAutocompleteItem, type ComposerAutocompleteState } from "../hooks/useComposerAutocomplete"
+import { matchAutocomplete, useComposerAutocomplete, type ComposerAutocompleteItem, type ComposerAutocompleteState } from "../hooks/useComposerAutocomplete"
 import { useHostMessages } from "../hooks/useHostMessages"
 import { useModifierState } from "../hooks/useModifierState"
 import { useTimelineScroll } from "../hooks/useTimelineScroll"
 import { formatComposerFileContent, parseComposerFileQuery } from "../lib/composer-file-selection"
-import { agentColor, composerIdentity, composerMetrics, composerSelection, cycleModelVariant, formatUsd, isSessionRunning, lastUserSelection, modelKey, modelVariants, overallLspStatus, overallMcpStatus, pushRecentModel, sessionTitle, toggleFavoriteModel, type StatusItem, type StatusTone } from "../lib/session-meta"
+import { agentColorClass, composerIdentity, composerMetrics, composerSelection, cycleModelVariant, formatUsd, isSessionRunning, lastUserSelection, modelKey, modelVariants, overallLspStatus, overallMcpStatus, pushRecentModel, sessionTitle, toggleFavoriteModel, type StatusItem, type StatusTone } from "../lib/session-meta"
 import { buildComposerSubmitParts, composerMentionAgentOverride } from "./composer-mentions"
 import { absorbFileSelectionSuffix, composerMentions as mentionsFromParts, composerPartsEqual, composerText, deleteStructuredRange, emptyComposerParts, ensureTextPart, replaceRangeWithMention, replaceRangeWithText } from "./composer-editor"
 import { getSelectionOffsets, parseComposerEditor, renderComposerEditor, setCursorPosition, syncComposerPillSelection } from "./composer-editor-dom"
@@ -36,6 +36,13 @@ const fileRefStatus = new Map<string, boolean>()
 const FILE_SEARCH_DEBOUNCE_MS = 180
 const ESC_INTERRUPT_WINDOW_MS = 5000
 
+function sameAutocompleteMatch(
+  left: { trigger: ComposerAutocompleteState["trigger"]; query: string; start: number; end: number } | null,
+  right: { trigger: ComposerAutocompleteState["trigger"]; query: string; start: number; end: number } | null,
+) {
+  return !!left && !!right && left.trigger === right.trigger && left.query === right.query && left.start === right.start && left.end === right.end
+}
+
 if (initialRef) {
   vscode.setState(initialRef)
 }
@@ -58,6 +65,7 @@ export function App() {
   const searchRef = React.useRef<{ requestID: string; query: string } | null>(null)
   const escTimerRef = React.useRef<number | null>(null)
   const escPendingRef = React.useRef(false)
+  const autocompleteDismissedRef = React.useRef<null | { trigger: ComposerAutocompleteState["trigger"]; query: string; start: number; end: number }>(null)
   const leaderTimerRef = React.useRef<number | null>(null)
   const leaderPendingRef = React.useRef(false)
   const onFileSearchResults = React.useCallback((payload: { requestID: string; query: string; results: ComposerPathResult[] }) => {
@@ -144,7 +152,27 @@ export function App() {
     return { draft, composerParts, composerMentions }
   }, [])
 
-  const syncComposerInput = React.useCallback((value: string, start: number | null | undefined, end: number | null | undefined) => {
+  const syncComposerInput = React.useCallback((
+    value: string,
+    start: number | null | undefined,
+    end: number | null | undefined,
+    source: "input" | "passive" = "input",
+  ) => {
+    const next = matchAutocomplete(value, start, end)
+
+    // Upstream only reevaluates autocomplete after content changes. In the webview we
+    // also resync on passive events like keyup, focus, mouseup, and compositionend,
+    // so dismissing @ autocomplete with Esc would immediately reopen on the next passive
+    // sync unless we suppress that exact unchanged match until real input changes it.
+    if (sameAutocompleteMatch(autocompleteDismissedRef.current, next)) {
+      if (source === "passive") {
+        return
+      }
+
+      return
+    }
+
+    autocompleteDismissedRef.current = null
     composerAutocomplete.sync(value, start, end)
   }, [composerAutocomplete])
 
@@ -162,6 +190,24 @@ export function App() {
       syncComposerInput(value, cursor, cursor)
     }, 0)
   }, [syncComposerInput])
+
+  const closeComposerAutocomplete = React.useCallback(() => {
+    const autocomplete = composerAutocomplete.state
+    if (!autocomplete) {
+      return
+    }
+
+    if (autocomplete.trigger === "slash") {
+      autocompleteDismissedRef.current = null
+      const next = replaceRangeWithText(state.composerParts, autocomplete.start, autocomplete.end, "")
+      const result = setComposerState(next.parts, "")
+      restoreComposerCursor(result.draft, next.cursor)
+      return
+    }
+
+    autocompleteDismissedRef.current = autocomplete
+    composerAutocomplete.close()
+  }, [composerAutocomplete, restoreComposerCursor, setComposerState, state.composerParts])
 
   const onRestoreComposer = React.useCallback((payload: { parts: ComposerPromptPart[] }) => {
     const parts = composerPartsFromPromptParts(payload.parts)
@@ -893,7 +939,7 @@ export function App() {
                       const composerParts = ensureTextPart(normalized.parts)
                       const draft = composerText(composerParts)
                       const composerMentions = mentionsFromParts(composerParts)
-                      syncComposerInput(draft, selection.start, selection.end)
+                      syncComposerInput(draft, selection.start, selection.end, "input")
                       setState((current) => ({
                         ...current,
                         draft,
@@ -925,7 +971,7 @@ export function App() {
                       }
                       const selection = getSelectionOffsets(input)
                       ensureComposerCursorVisible(input)
-                      syncComposerInput(state.draft, selection.start, selection.end)
+                      syncComposerInput(state.draft, selection.start, selection.end, "passive")
                     }}
                     onMouseUp={() => {
                       const input = composerRef.current
@@ -934,7 +980,7 @@ export function App() {
                       }
                       const selection = getSelectionOffsets(input)
                       ensureComposerCursorVisible(input)
-                      syncComposerInput(state.draft, selection.start, selection.end)
+                      syncComposerInput(state.draft, selection.start, selection.end, "passive")
                     }}
                     onFocus={() => {
                       setComposerFocused(true)
@@ -944,7 +990,7 @@ export function App() {
                       }
                       const selection = getSelectionOffsets(input)
                       ensureComposerCursorVisible(input)
-                      syncComposerInput(state.draft, selection.start, selection.end)
+                      syncComposerInput(state.draft, selection.start, selection.end, "passive")
                     }}
                     onBlur={() => {
                       setComposerFocused(false)
@@ -961,7 +1007,7 @@ export function App() {
                       }
                       const selection = getSelectionOffsets(input)
                       ensureComposerCursorVisible(input)
-                      syncComposerInput(state.draft, selection.start, selection.end)
+                      syncComposerInput(state.draft, selection.start, selection.end, "passive")
                     }}
                     onKeyDown={(event) => {
                       const native = event.nativeEvent as KeyboardEvent & { keyCode?: number }
@@ -1005,7 +1051,7 @@ export function App() {
 
                         if (event.key === "Escape") {
                           event.preventDefault()
-                          composerAutocomplete.close()
+                          closeComposerAutocomplete()
                           return
                         }
 
@@ -1232,12 +1278,13 @@ function ComposerInfo({
     composerModelVariants: state.composerModelVariants,
   })
   const variantOptions = modelVariants(state.snapshot.providers, info.modelRef)
+  const colorClass = agentColorClass(info.agent)
   return (
     <div className="oc-composerInfo">
       <div className="oc-composerInfoSpacer" />
       <div className="oc-composerInfoRow">
         <span className="oc-composerIdentityStart">
-          <span className="oc-composerAgent" style={{ color: agentColor(info.agent) }}>{info.agent}</span>
+          <span className={`oc-composerAgent ${colorClass}`}>{info.agent}</span>
         </span>
         {info.model || info.provider ? (
           <button

@@ -294,6 +294,69 @@
   color: var(--oc-accent);
 }
 
+.oc-composerAgent.oc-agentColor-0,
+.oc-agentName.oc-agentColor-0 {
+  color: #9ece6a;
+}
+
+.oc-agentSwatch.oc-agentColor-0 {
+  background: #9ece6a;
+}
+
+.oc-composerAgent.oc-agentColor-1,
+.oc-agentName.oc-agentColor-1 {
+  color: #6ab5ce;
+}
+
+.oc-agentSwatch.oc-agentColor-1 {
+  background: #6ab5ce;
+}
+
+.oc-composerAgent.oc-agentColor-2,
+.oc-agentName.oc-agentColor-2 {
+  color: #6a8cce;
+}
+
+.oc-agentSwatch.oc-agentColor-2 {
+  background: #6a8cce;
+}
+
+.oc-composerAgent.oc-agentColor-3,
+.oc-agentName.oc-agentColor-3 {
+  color: #a06ace;
+}
+
+.oc-agentSwatch.oc-agentColor-3 {
+  background: #a06ace;
+}
+
+.oc-composerAgent.oc-agentColor-4,
+.oc-agentName.oc-agentColor-4 {
+  color: #ce6ab5;
+}
+
+.oc-agentSwatch.oc-agentColor-4 {
+  background: #ce6ab5;
+}
+
+.oc-composerAgent.oc-agentColor-5,
+.oc-agentName.oc-agentColor-5 {
+  color: #ce8c6a;
+}
+
+.oc-agentSwatch.oc-agentColor-5 {
+  background: #ce8c6a;
+}
+
+.oc-composerAgent.oc-agentColor-6,
+.oc-agentName.oc-agentColor-6 {
+  color: #ceb56a;
+}
+
+.oc-agentSwatch.oc-agentColor-6 {
+  background: #ceb56a;
+}
+
 .oc-composerIdentityStart {
   display: inline-flex;
   align-items: center;

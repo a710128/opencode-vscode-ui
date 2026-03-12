@@ -307,7 +307,25 @@ export function statusItemForLsp(status: LspStatus): StatusItem {
 }
 
 export function agentColor(name: string) {
-  const palette = [
+  const palette = agentPalette()
+  return palette[agentColorIndex(name)]
+}
+
+export function agentColorClass(name: string) {
+  return `oc-agentColor-${agentColorIndex(name)}`
+}
+
+function agentColorIndex(name: string) {
+  let hash = 0
+  for (const char of name) {
+    hash = ((hash << 5) - hash) + char.charCodeAt(0)
+    hash |= 0
+  }
+  return Math.abs(hash) % agentPalette().length
+}
+
+function agentPalette() {
+  return [
     "#9ece6a",
     "#6ab5ce",
     "#6a8cce",
@@ -316,12 +334,6 @@ export function agentColor(name: string) {
     "#ce8c6a",
     "#ceb56a",
   ]
-  let hash = 0
-  for (const char of name) {
-    hash = ((hash << 5) - hash) + char.charCodeAt(0)
-    hash |= 0
-  }
-  return palette[Math.abs(hash) % palette.length]
 }
 
 export function composerIdentity(snapshot: {

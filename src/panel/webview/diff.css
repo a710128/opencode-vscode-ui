@@ -52,7 +52,7 @@
 
 .oc-codeWindowLine {
   display: grid;
-  grid-template-columns: var(--oc-codeWindow-gutter, 40px) minmax(0, 1fr);
+  grid-template-columns: 40px minmax(0, 1fr);
   column-gap: 8px;
   align-items: start;
   padding: 2px 0;
@@ -65,6 +65,26 @@
 .oc-codeWindowLineNo {
   color: var(--oc-fg-muted);
   text-align: right;
+}
+
+.oc-codeWindowBody.oc-codeWindowBody-gutter-2 .oc-codeWindowLine {
+  grid-template-columns: calc(2ch + 12px) minmax(0, 1fr);
+}
+
+.oc-codeWindowBody.oc-codeWindowBody-gutter-3 .oc-codeWindowLine {
+  grid-template-columns: calc(3ch + 12px) minmax(0, 1fr);
+}
+
+.oc-codeWindowBody.oc-codeWindowBody-gutter-4 .oc-codeWindowLine {
+  grid-template-columns: calc(4ch + 12px) minmax(0, 1fr);
+}
+
+.oc-codeWindowBody.oc-codeWindowBody-gutter-5 .oc-codeWindowLine {
+  grid-template-columns: calc(5ch + 12px) minmax(0, 1fr);
+}
+
+.oc-codeWindowBody.oc-codeWindowBody-gutter-6 .oc-codeWindowLine {
+  grid-template-columns: calc(6ch + 12px) minmax(0, 1fr);
 }
 
 .oc-codeWindowLineText {

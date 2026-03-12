@@ -36,19 +36,6 @@ export function OutputWindow({ ToolStatus, action, title, running = false, lineC
     return () => observer.disconnect()
   }, [children, expanded])
 
-  const bodyStyle = React.useMemo<React.CSSProperties>(() => {
-    if (!collapsible) {
-      return {}
-    }
-    if (!expanded) {
-      return { maxHeight: `${collapsedHeight}px` }
-    }
-    if (scrollable) {
-      return { maxHeight: `${expandedHeight}px` }
-    }
-    return {}
-  }, [collapsedHeight, collapsible, expanded, expandedHeight, scrollable])
-
   React.useEffect(() => {
     if (!collapsible && expanded) {
       setExpanded(false)
@@ -83,7 +70,7 @@ export function OutputWindow({ ToolStatus, action, title, running = false, lineC
         </div>
         <span className="oc-outputWindowSpinnerSlot">{running ? <ToolStatus state="running" /> : null}</span>
       </div>
-      <div className={bodyClassName} style={bodyStyle}>
+      <div className={bodyClassName}>
         <div ref={contentRef} className="oc-outputWindowBodyInner">{children}</div>
       </div>
       {collapsible ? (

@@ -10,7 +10,7 @@ import { FileRefText as BaseFileRefText } from "../renderers/FileRefText"
 import { MarkdownBlock as BaseMarkdownBlock } from "../renderers/MarkdownBlock"
 import { OutputWindow as BaseOutputWindow, normalizedLineCount } from "../renderers/OutputWindow"
 import { cleanReasoning, dividerText, extractUrls, fileLabel, isDividerPart, partMeta, partTitle, questionAnswerGroups, questionInfoList, retryText, stringList, textValue, todoMarker, uniqueStrings } from "../lib/part-utils"
-import { agentColor } from "../lib/session-meta"
+import { agentColorClass } from "../lib/session-meta"
 import { defaultToolExpanded, isMcpTool, lspRendersInline, patchFiles, toolChildSessionId, toolDetails, toolDiagnostics, toolEditDiff, toolFiles, toolLabel, toolTextBody, toolTodos, toolWriteContent } from "../lib/tool-meta"
 import { ToolFilesPanel as BaseToolFilesPanel } from "../tools/ToolFilesPanel"
 import { ToolLinksPanel as BaseToolLinksPanel } from "../tools/ToolLinksPanel"
@@ -184,7 +184,8 @@ export function OutputWindow({ action, title, running = false, lineCount, classN
 }
 
 export function AgentBadge({ name }: { name: string }) {
-  return <span className="oc-agentBadge"><span className="oc-agentSwatch" style={{ background: agentColor(name) }} /><span className="oc-agentName">{name}</span></span>
+  const colorClass = agentColorClass(name)
+  return <span className="oc-agentBadge"><span className={`oc-agentSwatch ${colorClass}`} /><span className={`oc-agentName ${colorClass}`}>{name}</span></span>
 }
 
 export function FileRefText({ value, display, tone = "default" }: { value: string; display?: string; tone?: "default" | "muted" }) {
