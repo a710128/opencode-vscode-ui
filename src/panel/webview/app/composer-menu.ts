@@ -42,7 +42,7 @@ export function buildComposerMenuItems(state: AppState, files: ComposerPathResul
     })
   }
 
-  if (state.composerAgentOverride) {
+  if (state.composerAgentOverride || state.composerMentionAgentOverride) {
     slashItems.push({
       id: "slash-reset-agent",
       label: "reset-agent",

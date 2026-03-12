@@ -2,7 +2,7 @@ import type { ComposerPromptPart } from "../../../bridge/types"
 import type { ComposerAutocompleteItem } from "../hooks/useComposerAutocomplete"
 import type { ComposerMention } from "./state"
 
-export function composerAgentOverride(mentions: ComposerMention[]) {
+export function composerMentionAgentOverride(mentions: ComposerMention[]) {
   for (let i = mentions.length - 1; i >= 0; i -= 1) {
     const item = mentions[i]
     if (item && item.type === "agent") {
@@ -106,7 +106,7 @@ export function insertComposerMention(value: string, mentions: ComposerMention[]
     draft,
     cursor: start + insert.length,
     composerMentions,
-    composerAgentOverride: composerAgentOverride(composerMentions),
+    composerMentionAgentOverride: composerMentionAgentOverride(composerMentions),
   }
 }
 
@@ -157,7 +157,7 @@ export function deleteMentionBoundary(value: string, mentions: ComposerMention[]
     draft,
     cursor: range.start,
     composerMentions,
-    composerAgentOverride: composerAgentOverride(composerMentions),
+    composerMentionAgentOverride: composerMentionAgentOverride(composerMentions),
   }
 }
 

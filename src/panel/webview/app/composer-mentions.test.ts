@@ -122,7 +122,7 @@ describe("composer mention deletion", () => {
       draft: "open now",
       cursor: 5,
       composerMentions: [],
-      composerAgentOverride: undefined,
+      composerMentionAgentOverride: undefined,
     })
   })
 
@@ -136,7 +136,7 @@ describe("composer mention deletion", () => {
       draft: "open now",
       cursor: 5,
       composerMentions: [],
-      composerAgentOverride: undefined,
+      composerMentionAgentOverride: undefined,
     })
   })
 
@@ -153,7 +153,7 @@ describe("composer mention deletion", () => {
       draft: "open now",
       cursor: 5,
       composerMentions: [],
-      composerAgentOverride: undefined,
+      composerMentionAgentOverride: undefined,
     })
   })
 })

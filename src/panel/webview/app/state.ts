@@ -93,6 +93,7 @@ export type AppState = {
   composerParts: ComposerEditorPart[]
   composerMentions: ComposerMention[]
   composerAgentOverride?: string
+  composerMentionAgentOverride?: string
   error: string
   form: FormState
 }
@@ -132,6 +133,7 @@ export function createInitialState(initialRef: SessionBootstrap["sessionRef"] | 
     composerParts: [{ type: "text", content: "", start: 0, end: 0 }],
     composerMentions: [],
     composerAgentOverride: undefined,
+    composerMentionAgentOverride: undefined,
     error: "",
     form: {
       selected: {},

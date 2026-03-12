@@ -13,11 +13,12 @@ import { useModifierState } from "../hooks/useModifierState"
 import { useTimelineScroll } from "../hooks/useTimelineScroll"
 import { formatComposerFileContent, parseComposerFileQuery } from "../lib/composer-file-selection"
 import { agentColor, composerIdentity, composerMetrics, composerSelection, formatUsd, isSessionRunning, overallLspStatus, overallMcpStatus, sessionTitle, type StatusItem, type StatusTone } from "../lib/session-meta"
-import { buildComposerSubmitParts, composerAgentOverride } from "./composer-mentions"
+import { buildComposerSubmitParts, composerMentionAgentOverride } from "./composer-mentions"
 import { absorbFileSelectionSuffix, composerMentions as mentionsFromParts, composerPartsEqual, composerText, deleteStructuredRange, emptyComposerParts, ensureTextPart, replaceRangeWithMention, replaceRangeWithText } from "./composer-editor"
 import { getSelectionOffsets, parseComposerEditor, renderComposerEditor, setCursorPosition, syncComposerPillSelection } from "./composer-editor-dom"
 import { autocompleteItemView, buildComposerMenuItems, mentionForQuery } from "./composer-menu"
-import { cycleAgentName, isShortcutTarget, leaderAction } from "./keyboard-shortcuts"
+import { composerTabIntent, cycleAgentName, isShortcutTarget, leaderAction } from "./keyboard-shortcuts"
+import { activeChildSessionId } from "./session-navigation"
 
 declare global {
   interface Window {
@@ -113,7 +114,7 @@ export function App() {
       draft,
       composerParts,
       composerMentions,
-      composerAgentOverride: composerAgentOverride(composerMentions),
+      composerMentionAgentOverride: composerMentionAgentOverride(composerMentions),
       error,
     }))
     return { draft, composerParts, composerMentions }
@@ -262,7 +263,7 @@ export function App() {
           draft: "",
           composerParts: emptyComposerParts(),
           composerMentions: [],
-          composerAgentOverride: undefined,
+          composerMentionAgentOverride: undefined,
           error: "",
         }))
         return
@@ -270,7 +271,11 @@ export function App() {
     }
 
     const mentions = mentionsFromParts(finalized)
-    const selection = composerSelection({ ...state.snapshot, composerAgentOverride: state.composerAgentOverride })
+    const selection = composerSelection({
+      ...state.snapshot,
+      composerAgentOverride: state.composerAgentOverride,
+      composerMentionAgentOverride: state.composerMentionAgentOverride,
+    })
     const parts = buildComposerSubmitParts(draft, mentions)
     vscode.postMessage({
       type: "submit",
@@ -284,10 +289,10 @@ export function App() {
       draft: "",
       composerParts: emptyComposerParts(),
       composerMentions: [],
-      composerAgentOverride: undefined,
+      composerMentionAgentOverride: undefined,
       error: "",
     }))
-  }, [blocked, state.composerAgentOverride, state.composerParts, state.snapshot])
+  }, [blocked, state.composerAgentOverride, state.composerMentionAgentOverride, state.composerParts, state.snapshot])
 
   const clearComposerDraft = React.useCallback(() => {
     setState((current) => ({
@@ -295,7 +300,7 @@ export function App() {
       draft: "",
       composerParts: emptyComposerParts(),
       composerMentions: [],
-      composerAgentOverride: undefined,
+      composerMentionAgentOverride: undefined,
       error: "",
     }))
   }, [])
@@ -329,7 +334,11 @@ export function App() {
   }, [])
 
   const cycleComposerAgent = React.useCallback(() => {
-    const current = composerSelection({ ...state.snapshot, composerAgentOverride: state.composerAgentOverride }).agent
+    const current = composerSelection({
+      ...state.snapshot,
+      composerAgentOverride: state.composerAgentOverride,
+      composerMentionAgentOverride: state.composerMentionAgentOverride,
+    }).agent
     const next = cycleAgentName(state.snapshot.agents, current)
     if (!next) {
       return false
@@ -341,7 +350,7 @@ export function App() {
       error: "",
     }))
     return true
-  }, [state.composerAgentOverride, state.snapshot])
+  }, [state.composerAgentOverride, state.composerMentionAgentOverride, state.snapshot])
 
   const runLeaderAction = React.useCallback((action: ReturnType<typeof leaderAction>) => {
     if (!action) {
@@ -349,11 +358,11 @@ export function App() {
     }
 
     if (action === "childFirst") {
-      const firstChildID = state.snapshot.navigation.firstChild?.id
-      if (!firstChildID) {
+      const childSessionID = activeChildSessionId(state.snapshot.messages, state.snapshot.childSessions)
+      if (!childSessionID) {
         return false
       }
-      navigateSession(firstChildID)
+      navigateSession(childSessionID)
       return true
     }
 
@@ -369,7 +378,7 @@ export function App() {
     clearComposerDraft()
     postComposerAction("undoSession")
     return true
-  }, [clearComposerDraft, navigateSession, postComposerAction, state.snapshot.navigation.firstChild, state.snapshot.session])
+  }, [clearComposerDraft, navigateSession, postComposerAction, state.snapshot.childSessions, state.snapshot.messages, state.snapshot.session])
 
   React.useEffect(() => () => clearLeaderPending(), [clearLeaderPending])
 
@@ -438,42 +447,54 @@ export function App() {
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [clearLeaderPending, composerAutocomplete.state, isChildSession, navigateSession, runLeaderAction, startLeaderPending, state.bootstrap.status, state.snapshot.navigation.next, state.snapshot.navigation.parent, state.snapshot.navigation.prev])
 
-  const acceptComposerAutocomplete = React.useCallback((item: ComposerAutocompleteItem) => {
-      if (item.kind === "action") {
-        if (item.id === "slash-undo") {
-          clearComposerDraft()
-          postComposerAction("undoSession")
-          composerAutocomplete.close()
-          return
-        }
-
-        if (item.id === "slash-redo") {
-          clearComposerDraft()
-          postComposerAction("redoSession")
-          composerAutocomplete.close()
-          return
-        }
-
-        if (item.id === "slash-compact") {
-          const selection = composerSelection({ ...state.snapshot, composerAgentOverride: state.composerAgentOverride })
-          clearComposerDraft()
-          postComposerAction("compactSession", selection.model)
-          composerAutocomplete.close()
-          return
-        }
-
-      if (item.id === "slash-reset-agent") {
+  const acceptComposerAutocomplete = React.useCallback((item: ComposerAutocompleteItem, options?: { completeDirectory?: boolean }) => {
+    if (item.kind === "action") {
+      if (item.id === "slash-undo") {
         clearComposerDraft()
+        postComposerAction("undoSession")
         composerAutocomplete.close()
         return
       }
 
-        if (item.id === "slash-refresh") {
-          clearComposerDraft()
-          postComposerAction("refreshSession")
-          composerAutocomplete.close()
-          return
-        }
+      if (item.id === "slash-redo") {
+        clearComposerDraft()
+        postComposerAction("redoSession")
+        composerAutocomplete.close()
+        return
+      }
+
+      if (item.id === "slash-compact") {
+        const selection = composerSelection({
+          ...state.snapshot,
+          composerAgentOverride: state.composerAgentOverride,
+          composerMentionAgentOverride: state.composerMentionAgentOverride,
+        })
+        clearComposerDraft()
+        postComposerAction("compactSession", selection.model)
+        composerAutocomplete.close()
+        return
+      }
+
+      if (item.id === "slash-reset-agent") {
+        setState((current) => ({
+          ...current,
+          draft: "",
+          composerParts: emptyComposerParts(),
+          composerMentions: [],
+          composerAgentOverride: undefined,
+          composerMentionAgentOverride: undefined,
+          error: "",
+        }))
+        composerAutocomplete.close()
+        return
+      }
+
+      if (item.id === "slash-refresh") {
+        clearComposerDraft()
+        postComposerAction("refreshSession")
+        composerAutocomplete.close()
+        return
+      }
     }
 
     if (item.kind === "command") {
@@ -492,6 +513,13 @@ export function App() {
         return
       }
 
+      if (options?.completeDirectory && item.mention.type === "file" && item.mention.kind === "directory") {
+        const next = replaceRangeWithText(state.composerParts, range.start, range.end, `@${item.mention.path}`)
+        const result = setComposerState(next.parts, "")
+        restoreComposerCursor(result.draft, next.cursor)
+        return
+      }
+
       const mention = item.mention.type === "file"
         ? mentionForQuery(item.mention, range.query)
         : item.mention
@@ -500,7 +528,7 @@ export function App() {
       composerAutocomplete.close()
       restoreComposerCursor(result.draft, next.cursor)
     }
-  }, [clearComposerDraft, composerAutocomplete, postComposerAction, restoreComposerCursor, setComposerState, state.composerAgentOverride, state.composerParts, state.snapshot])
+  }, [clearComposerDraft, composerAutocomplete, postComposerAction, restoreComposerCursor, setComposerState, state.composerAgentOverride, state.composerMentionAgentOverride, state.composerParts, state.snapshot])
 
   const sendQuestionReply = React.useCallback((request: QuestionRequest) => {
     const answers = request.questions.map((_item, index) => {
@@ -647,7 +675,7 @@ export function App() {
                         draft,
                         composerParts,
                         composerMentions,
-                        composerAgentOverride: composerAgentOverride(composerMentions),
+                        composerMentionAgentOverride: composerMentionAgentOverride(composerMentions),
                       }))
                       if (normalized.changed) {
                         composerCursorRef.current = selection.end
@@ -757,18 +785,40 @@ export function App() {
                           return
                         }
 
-                        if ((event.key === "Enter" && !(event.metaKey || event.ctrlKey)) || event.key === "Tab") {
+                        if (event.key === "Enter" && !(event.metaKey || event.ctrlKey)) {
                           event.preventDefault()
                           if (composerAutocomplete.currentItem) {
                             acceptComposerAutocomplete(composerAutocomplete.currentItem)
                           }
                           return
                         }
+
+                        if (event.key === "Tab" && composerAutocomplete.currentItem) {
+                          event.preventDefault()
+                          acceptComposerAutocomplete(composerAutocomplete.currentItem, { completeDirectory: composerAutocomplete.currentItem.kind === "directory" })
+                          return
+                        }
                       }
 
-                      if (event.key === "Tab" && !event.metaKey && !event.ctrlKey && !event.altKey && cycleComposerAgent()) {
-                        event.preventDefault()
-                        return
+                      if (event.key === "Tab") {
+                        const currentAgent = composerSelection({
+                          ...state.snapshot,
+                          composerAgentOverride: state.composerAgentOverride,
+                          composerMentionAgentOverride: state.composerMentionAgentOverride,
+                        }).agent
+                        const nextAgent = cycleAgentName(state.snapshot.agents, currentAgent)
+                        const tabIntent = composerTabIntent({
+                          hasAutocomplete: !!composerAutocomplete.state,
+                          hasCurrentItem: !!composerAutocomplete.currentItem,
+                          metaKey: event.metaKey,
+                          ctrlKey: event.ctrlKey,
+                          altKey: event.altKey,
+                          canCycleAgent: !!nextAgent,
+                        })
+                        if (tabIntent === "cycleAgent" && cycleComposerAgent()) {
+                          event.preventDefault()
+                          return
+                        }
                       }
 
                       if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) {
@@ -902,7 +952,11 @@ function popupEmptyText(state: ComposerAutocompleteState, fileSearch: { status: 
 }
 
 function ComposerInfo({ state, leaderPending: _leaderPending }: { state: AppState; leaderPending: boolean }) {
-  const info = composerIdentity({ ...state.snapshot, composerAgentOverride: state.composerAgentOverride })
+  const info = composerIdentity({
+    ...state.snapshot,
+    composerAgentOverride: state.composerAgentOverride,
+    composerMentionAgentOverride: state.composerMentionAgentOverride,
+  })
   const running = isSessionRunning(state.snapshot.sessionStatus)
   return (
     <div className="oc-composerInfo" aria-hidden="true">

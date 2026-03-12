@@ -2,6 +2,15 @@ import type { AgentInfo } from "../../../core/sdk"
 
 export type LeaderAction = "childFirst" | "redoSession" | "undoSession"
 
+type ComposerTabIntentOptions = {
+  hasAutocomplete: boolean
+  hasCurrentItem: boolean
+  metaKey: boolean
+  ctrlKey: boolean
+  altKey: boolean
+  canCycleAgent: boolean
+}
+
 export function cycleAgentName(agents: AgentInfo[], current?: string) {
   const visible = agents.filter((agent) => agent.mode !== "subagent" && !agent.hidden)
   if (visible.length === 0) {
@@ -27,6 +36,18 @@ export function leaderAction(key: string): LeaderAction | undefined {
     default:
       return undefined
   }
+}
+
+export function composerTabIntent(options: ComposerTabIntentOptions) {
+  if (options.hasAutocomplete && options.hasCurrentItem) {
+    return "autocomplete" as const
+  }
+
+  if (!options.metaKey && !options.ctrlKey && !options.altKey && options.canCycleAgent) {
+    return "cycleAgent" as const
+  }
+
+  return undefined
 }
 
 export function isShortcutTarget(target: EventTarget | null, composer: HTMLElement | null) {
