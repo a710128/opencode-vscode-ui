@@ -384,6 +384,10 @@
   text-transform: lowercase;
 }
 
+.oc-composerHintText.is-warning {
+  color: var(--oc-warning);
+}
+
 .oc-keycap {
   display: inline-flex;
   align-items: center;

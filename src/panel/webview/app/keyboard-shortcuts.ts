@@ -1,6 +1,6 @@
 import type { AgentInfo } from "../../../core/sdk"
 
-export type LeaderAction = "childFirst" | "redoSession" | "undoSession"
+export type LeaderAction = "childFirst" | "newSession" | "redoSession" | "undoSession"
 
 type ComposerTabIntentOptions = {
   hasAutocomplete: boolean
@@ -29,6 +29,8 @@ export function leaderAction(key: string): LeaderAction | undefined {
   switch (normalizeKey(key)) {
     case "down":
       return "childFirst"
+    case "n":
+      return "newSession"
     case "r":
       return "redoSession"
     case "u":

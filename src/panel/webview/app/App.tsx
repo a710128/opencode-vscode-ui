@@ -32,6 +32,7 @@ const vscode = acquireVsCodeApi()
 const initialRef = window.__OPENCODE_INITIAL_STATE__ ?? null
 const fileRefStatus = new Map<string, boolean>()
 const FILE_SEARCH_DEBOUNCE_MS = 180
+const ESC_INTERRUPT_WINDOW_MS = 5000
 
 if (initialRef) {
   vscode.setState(initialRef)
@@ -41,6 +42,7 @@ export function App() {
   const [state, setState] = React.useState(() => createInitialState(initialRef))
   const [composing, setComposing] = React.useState(false)
   const [composerFocused, setComposerFocused] = React.useState(false)
+  const [escPending, setEscPending] = React.useState(false)
   const [leaderPending, setLeaderPending] = React.useState(false)
   const [pendingMcpActions, setPendingMcpActions] = React.useState<Record<string, boolean>>({})
   const [fileResults, setFileResults] = React.useState<ComposerPathResult[]>([])
@@ -50,6 +52,8 @@ export function App() {
   const composerRef = React.useRef<HTMLDivElement | null>(null)
   const composerCursorRef = React.useRef<number | null>(null)
   const searchRef = React.useRef<{ requestID: string; query: string } | null>(null)
+  const escTimerRef = React.useRef<number | null>(null)
+  const escPendingRef = React.useRef(false)
   const leaderTimerRef = React.useRef<number | null>(null)
   const leaderPendingRef = React.useRef(false)
   const onFileSearchResults = React.useCallback((payload: { requestID: string; query: string; results: ComposerPathResult[] }) => {
@@ -329,8 +333,34 @@ export function App() {
     vscode.postMessage({ type: "navigateSession", sessionID })
   }, [])
 
-  const postComposerAction = React.useCallback((action: "refreshSession" | "compactSession" | "undoSession" | "redoSession", model?: { providerID: string; modelID: string }) => {
+  const postNewSession = React.useCallback(() => {
+    vscode.postMessage({ type: "newSession" })
+  }, [])
+
+  const postComposerAction = React.useCallback((action: "refreshSession" | "compactSession" | "undoSession" | "redoSession" | "interruptSession", model?: { providerID: string; modelID: string }) => {
     vscode.postMessage({ type: "composerAction", action, model })
+  }, [])
+
+  const clearEscPending = React.useCallback(() => {
+    escPendingRef.current = false
+    setEscPending(false)
+    if (escTimerRef.current !== null) {
+      window.clearTimeout(escTimerRef.current)
+      escTimerRef.current = null
+    }
+  }, [])
+
+  const startEscPending = React.useCallback(() => {
+    if (escTimerRef.current !== null) {
+      window.clearTimeout(escTimerRef.current)
+    }
+    escPendingRef.current = true
+    setEscPending(true)
+    escTimerRef.current = window.setTimeout(() => {
+      escPendingRef.current = false
+      setEscPending(false)
+      escTimerRef.current = null
+    }, ESC_INTERRUPT_WINDOW_MS)
   }, [])
 
   const cycleComposerAgent = React.useCallback(() => {
@@ -366,6 +396,12 @@ export function App() {
       return true
     }
 
+    if (action === "newSession") {
+      clearComposerDraft()
+      postNewSession()
+      return true
+    }
+
     if (action === "redoSession") {
       if (!state.snapshot.session?.revert?.messageID) {
         return false
@@ -378,15 +414,22 @@ export function App() {
     clearComposerDraft()
     postComposerAction("undoSession")
     return true
-  }, [clearComposerDraft, navigateSession, postComposerAction, state.snapshot.childSessions, state.snapshot.messages, state.snapshot.session])
+  }, [clearComposerDraft, navigateSession, postComposerAction, postNewSession, state.snapshot.childSessions, state.snapshot.messages, state.snapshot.session])
 
   React.useEffect(() => () => clearLeaderPending(), [clearLeaderPending])
+  React.useEffect(() => () => clearEscPending(), [clearEscPending])
 
   React.useEffect(() => {
     if (composerAutocomplete.state) {
       clearLeaderPending()
     }
   }, [clearLeaderPending, composerAutocomplete.state])
+
+  React.useEffect(() => {
+    if (!isSessionRunning(state.snapshot.sessionStatus)) {
+      clearEscPending()
+    }
+  }, [clearEscPending, state.snapshot.sessionStatus])
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -445,7 +488,7 @@ export function App() {
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [clearLeaderPending, composerAutocomplete.state, isChildSession, navigateSession, runLeaderAction, startLeaderPending, state.bootstrap.status, state.snapshot.navigation.next, state.snapshot.navigation.parent, state.snapshot.navigation.prev])
+  }, [clearEscPending, clearLeaderPending, composerAutocomplete.state, isChildSession, navigateSession, runLeaderAction, startLeaderPending, state.bootstrap.status, state.snapshot.navigation.next, state.snapshot.navigation.parent, state.snapshot.navigation.prev])
 
   const acceptComposerAutocomplete = React.useCallback((item: ComposerAutocompleteItem, options?: { completeDirectory?: boolean }) => {
     if (item.kind === "action") {
@@ -800,6 +843,22 @@ export function App() {
                         }
                       }
 
+                      if (event.key === "Escape" && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+                        if (!isSessionRunning(state.snapshot.sessionStatus)) {
+                          return
+                        }
+
+                        event.preventDefault()
+                        if (escPendingRef.current) {
+                          clearEscPending()
+                          postComposerAction("interruptSession")
+                          return
+                        }
+
+                        startEscPending()
+                        return
+                      }
+
                       if (event.key === "Tab") {
                         const currentAgent = composerSelection({
                           ...state.snapshot,
@@ -835,7 +894,7 @@ export function App() {
               </div>
             <div className="oc-composerActions">
               <div className="oc-composerActionsMain">
-                <ComposerRunHints state={state} />
+                <ComposerRunHints state={state} escPending={escPending} />
                 {state.error ? <div className="oc-errorText oc-composerErrorText">{state.error}</div> : null}
               </div>
               <div className="oc-composerContextWrap">
@@ -1113,7 +1172,7 @@ function ComposerRunningIndicator({ running }: { running: boolean }) {
   return <span className={`oc-composerRunBar${running ? " is-running" : ""}`} aria-label="running" />
 }
 
-function ComposerRunHints({ state }: { state: AppState }) {
+function ComposerRunHints({ state, escPending }: { state: AppState; escPending: boolean }) {
   const running = isSessionRunning(state.snapshot.sessionStatus)
   const modifierLabel = useModifierKeyLabel()
 
@@ -1121,7 +1180,7 @@ function ComposerRunHints({ state }: { state: AppState }) {
     return (
       <div className="oc-composerHintRow" aria-hidden="true">
         <ComposerRunningIndicator running />
-        <span className="oc-composerHintText">esc interrupt</span>
+        <span className={`oc-composerHintText${escPending ? " is-warning" : ""}`}>{escPending ? "esc again to interrupt" : "esc interrupt"}</span>
       </div>
     )
   }

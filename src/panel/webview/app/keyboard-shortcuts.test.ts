@@ -18,6 +18,7 @@ describe("keyboard shortcuts", () => {
 
   test("maps leader combos to upstream actions", () => {
     assert.equal(leaderAction("ArrowDown"), "childFirst")
+    assert.equal(leaderAction("n"), "newSession")
     assert.equal(leaderAction("r"), "redoSession")
     assert.equal(leaderAction("u"), "undoSession")
     assert.equal(leaderAction("ArrowLeft"), undefined)

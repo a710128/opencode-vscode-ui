@@ -131,7 +131,7 @@ export async function runSlashCommand(ctx: ActionContext, command: string, args:
   }
 }
 
-export async function runComposerAction(ctx: ActionContext, action: "refreshSession" | "compactSession" | "undoSession" | "redoSession", model?: MessageInfo["model"]) {
+export async function runComposerAction(ctx: ActionContext, action: "refreshSession" | "compactSession" | "undoSession" | "redoSession" | "interruptSession", model?: MessageInfo["model"]) {
   if (ctx.state.disposed) {
     return
   }
@@ -178,6 +178,29 @@ export async function runComposerAction(ctx: ActionContext, action: "refreshSess
         ctx.state.pendingSubmitCount = Math.max(0, ctx.state.pendingSubmitCount - 1)
         await ctx.push(true)
       }
+      return
+    }
+
+    if (action === "interruptSession") {
+      if (!rt || rt.state !== "ready" || !rt.sdk) {
+        await fail(ctx.panel.webview, "Workspace server is not ready.")
+        return
+      }
+
+      const status = (await rt.sdk.session.status({
+        directory: rt.dir,
+      })).data?.[ctx.ref.sessionId]
+
+      if (!status?.type || status.type === "idle") {
+        return
+      }
+
+      await rt.sdk.session.abort({
+        sessionID: ctx.ref.sessionId,
+        directory: rt.dir,
+      })
+      await wait(200)
+      await ctx.push(true)
       return
     }
 

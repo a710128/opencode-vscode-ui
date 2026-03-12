@@ -181,11 +181,14 @@ export type WebviewMessage =
     }
   | {
       type: "composerAction"
-      action: "refreshSession" | "compactSession" | "undoSession" | "redoSession"
+      action: "refreshSession" | "compactSession" | "undoSession" | "redoSession" | "interruptSession"
       model?: {
         providerID: string
         modelID: string
       }
+    }
+  | {
+      type: "newSession"
     }
   | {
       type: "runSlashCommand"

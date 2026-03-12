@@ -76,6 +76,11 @@ export class SessionPanelController implements vscode.Disposable {
           return
         }
 
+        if (message?.type === "newSession") {
+          void vscode.commands.executeCommand("opencode-ui.newSessionAndOpen", this.ref.dir)
+          return
+        }
+
         if (message?.type === "openFile") {
           void openFile(this.ref.dir, message.filePath, message.line)
           return

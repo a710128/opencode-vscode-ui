@@ -38,6 +38,24 @@ export function commands(
       const session = await sessions.create(dir)
       await vscode.window.showInformationMessage(`Created session ${session.title || session.id.slice(0, 8)}.`)
     }),
+    vscode.commands.registerCommand("opencode-ui.newSessionAndOpen", async (dir?: string) => {
+      const targetDir = dir ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+
+      if (!targetDir) {
+        await vscode.window.showInformationMessage("Open a workspace folder first.")
+        return
+      }
+
+      const rt = mgr.get(targetDir)
+
+      if (!rt || rt.state !== "ready") {
+        await vscode.window.showInformationMessage("Wait for the workspace server to become ready first.")
+        return
+      }
+
+      const session = await sessions.create(targetDir)
+      await tabs.openSession(targetDir, session)
+    }),
     vscode.commands.registerCommand("opencode-ui.restartWorkspaceServer", async (item?: WorkspaceItem) => {
       const dir = item?.runtime.dir
 
