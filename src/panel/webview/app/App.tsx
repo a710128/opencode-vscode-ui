@@ -1047,7 +1047,7 @@ export function App() {
                           return
                         }
 
-                        if (event.key === "Enter" && !(event.metaKey || event.ctrlKey)) {
+                        if (event.key === "Enter") {
                           event.preventDefault()
                           if (composerAutocomplete.currentItem) {
                             acceptComposerAutocomplete(composerAutocomplete.currentItem)
