@@ -112,7 +112,9 @@ export class SessionStore implements vscode.Disposable {
         throw new Error("session create returned no data")
       }
 
-      rt.sessions.set(item.id, item)
+      if (shouldTrackSession(item)) {
+        rt.sessions.set(item.id, item)
+      }
       rt.sessionsState = "ready"
       rt.sessionsErr = undefined
       this.mgr.invalidate()
@@ -172,6 +174,10 @@ export class SessionStore implements vscode.Disposable {
       }
 
       if (!isSessionStatus(status)) {
+        return
+      }
+
+      if (!rt.sessions.has(sessionID)) {
         return
       }
 
