@@ -50,6 +50,9 @@ mock.module("vscode", () => ({
   workspace: {
     workspaceFolders: [],
     onDidChangeWorkspaceFolders: () => new Disposable(),
+    getConfiguration: () => ({
+      get: <T>(_key: string, fallback: T) => fallback,
+    }),
     fs: {
       stat: async () => ({ type: 0 }),
     },

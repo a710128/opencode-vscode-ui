@@ -1,10 +1,28 @@
 import * as vscode from "vscode"
 import { EventHub } from "./events"
+import type { WorkspaceRuntime } from "./server"
+import { shouldTrackSession, syncTrackedSession } from "./session-list"
 import type { SessionEvent, SessionInfo, SessionStatus } from "./sdk"
 import { WorkspaceManager } from "./workspace"
 
+type RefreshRuntime = {
+  workspaceId: string
+  dir: string
+  name: string
+  sdk: NonNullable<WorkspaceRuntime["sdk"]>
+  sessionsState: "idle" | "loading" | "ready" | "error"
+  sessionsErr?: string
+}
+
+type InflightRefresh = {
+  promise: Promise<SessionInfo[]>
+  rt: RefreshRuntime
+  loud: boolean
+}
+
 export class SessionStore implements vscode.Disposable {
   private seen = new Set<string>()
+  private inflightRefresh = new Map<string, InflightRefresh>()
   private refreshRev = new Map<string, number>()
   private infoRev = new Map<string, number>()
   private infoEventRev = new Map<string, Map<string, number>>()
@@ -43,51 +61,27 @@ export class SessionStore implements vscode.Disposable {
       return []
     }
 
-    rt.sessionsState = "loading"
-    rt.sessionsErr = undefined
-    const refreshRev = this.bumpRefreshRev(workspaceId)
-    this.mgr.invalidate()
-
-    try {
-      const infoRev = this.infoRevision(rt.workspaceId)
-      const rev = this.rev(rt.workspaceId)
-      const [listRes, statusRes] = await Promise.all([
-        rt.sdk.session.list({
-          directory: rt.dir,
-          roots: true,
-        }),
-        rt.sdk.session.status({
-          directory: rt.dir,
-        }).catch(() => ({ data: undefined })),
-      ])
-
-      if (!this.isLatestRefresh(workspaceId, refreshRev)) {
-        return this.list(workspaceId)
-      }
-
-      const list = listRes.data ?? []
-      this.applySessions(rt.workspaceId, list, infoRev)
-      this.applyStatuses(rt.workspaceId, list.map((item) => item.id), statusRes.data, rev)
-      rt.sessionsState = "ready"
-      rt.sessionsErr = undefined
-      this.seen.add(rt.workspaceId)
-      this.log(rt.name, `loaded ${list.length} sessions`)
-      return list
-    } catch (err) {
-      if (!this.isLatestRefresh(workspaceId, refreshRev)) {
-        return this.list(workspaceId)
-      }
-
-      rt.sessionsState = "error"
-      rt.sessionsErr = text(err)
-      this.log(rt.name, `session list failed: ${rt.sessionsErr}`)
+    const refreshRt = rt as RefreshRuntime
+    const pending = this.inflightRefresh.get(workspaceId)
+    if (pending?.rt === refreshRt) {
       if (!quiet) {
-        await vscode.window.showErrorMessage(`OpenCode session list failed for ${rt.name}: ${rt.sessionsErr}`)
+        pending.loud = true
       }
-      return []
+      return pending.promise
+    }
+
+    const entry: InflightRefresh = {
+      rt: refreshRt,
+      loud: !quiet,
+      promise: Promise.resolve([]),
+    }
+    entry.promise = this.runRefresh(entry)
+    this.inflightRefresh.set(workspaceId, entry)
+    try {
+      return await entry.promise
     } finally {
-      if (this.isLatestRefresh(workspaceId, refreshRev)) {
-        this.mgr.invalidate()
+      if (this.inflightRefresh.get(workspaceId) === entry) {
+        this.inflightRefresh.delete(workspaceId)
       }
     }
   }
@@ -112,9 +106,7 @@ export class SessionStore implements vscode.Disposable {
         throw new Error("session create returned no data")
       }
 
-      if (shouldTrackSession(item)) {
-        rt.sessions.set(item.id, item)
-      }
+      syncTrackedSession(rt.sessions, rt.sessionStatuses, item)
       rt.sessionsState = "ready"
       rt.sessionsErr = undefined
       this.mgr.invalidate()
@@ -191,15 +183,12 @@ export class SessionStore implements vscode.Disposable {
       const info = event.properties.info
       const rev = this.bumpInfoRev(workspaceId)
 
-      if (shouldTrackSession(info)) {
+      if (syncTrackedSession(rt.sessions, rt.sessionStatuses, info)) {
         this.infoTombstones.get(workspaceId)?.delete(info.id)
-        rt.sessions.set(info.id, info)
         this.setInfoEventRev(workspaceId, info.id, rev)
       } else {
         this.setInfoEventRev(workspaceId, info.id, rev)
         this.setInfoTombstone(workspaceId, info.id, info.time.updated)
-        rt.sessions.delete(info.id)
-        rt.sessionStatuses.delete(info.id)
         this.setEventRev(workspaceId, info.id, this.bumpRev(workspaceId))
       }
 
@@ -235,6 +224,57 @@ export class SessionStore implements vscode.Disposable {
     )
   }
 
+  private async runRefresh(entry: InflightRefresh) {
+    const rt = entry.rt
+    rt.sessionsState = "loading"
+    rt.sessionsErr = undefined
+    const refreshRev = this.bumpRefreshRev(rt.workspaceId)
+    this.mgr.invalidate()
+
+    try {
+      const infoRev = this.infoRevision(rt.workspaceId)
+      const rev = this.rev(rt.workspaceId)
+      const [listRes, statusRes] = await Promise.all([
+        rt.sdk.session.list({
+          directory: rt.dir,
+          roots: true,
+        }),
+        rt.sdk.session.status({
+          directory: rt.dir,
+        }).catch(() => ({ data: undefined })),
+      ])
+
+      if (!this.isLatestRefresh(rt.workspaceId, refreshRev)) {
+        return this.list(rt.workspaceId)
+      }
+
+      const list: SessionInfo[] = listRes.data ?? []
+      this.applySessions(rt.workspaceId, list, infoRev)
+      this.applyStatuses(rt.workspaceId, list.map((item) => item.id), statusRes.data, rev)
+      rt.sessionsState = "ready"
+      rt.sessionsErr = undefined
+      this.seen.add(rt.workspaceId)
+      this.log(rt.name, `loaded ${list.length} sessions`)
+      return list
+    } catch (err) {
+      if (!this.isLatestRefresh(rt.workspaceId, refreshRev)) {
+        return this.list(rt.workspaceId)
+      }
+
+      rt.sessionsState = "error"
+      rt.sessionsErr = text(err)
+      this.log(rt.name, `session list failed: ${rt.sessionsErr}`)
+      if (entry.loud) {
+        await vscode.window.showErrorMessage(`OpenCode session list failed for ${rt.name}: ${rt.sessionsErr}`)
+      }
+      return []
+    } finally {
+      if (this.isLatestRefresh(rt.workspaceId, refreshRev)) {
+        this.mgr.invalidate()
+      }
+    }
+  }
+
   private log(name: string, msg: string) {
     this.out.appendLine(`[${name}] ${msg}`)
   }
@@ -252,7 +292,7 @@ export class SessionStore implements vscode.Disposable {
     const tombstones = this.infoTombstones.get(workspaceId)
 
     for (const id of [...rt.sessions.keys()]) {
-      if (!ids.has(id) && (eventRevs?.get(id) ?? 0) < revAtStart) {
+      if (!ids.has(id) && (eventRevs?.get(id) ?? 0) <= revAtStart) {
         rt.sessions.delete(id)
       }
     }
@@ -422,10 +462,6 @@ function isSessionDeletedEvent(event: SessionEvent): event is Extract<SessionEve
 
 function isSessionInfoEvent(event: SessionEvent): event is Extract<SessionEvent, { type: "session.updated" | "session.created" }> {
   return event.type === "session.updated" || event.type === "session.created"
-}
-
-function shouldTrackSession(info: { parentID?: string }) {
-  return !info.parentID
 }
 
 function text(err: unknown) {

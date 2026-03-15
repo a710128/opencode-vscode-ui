@@ -1,5 +1,6 @@
 import * as path from "node:path"
 import type { SessionPanelRef, SessionSnapshot } from "../../bridge/types"
+import { syncTrackedSession } from "../../core/session-list"
 import { getDisplaySettings } from "../../core/settings"
 import type { AgentInfo, Client, CommandInfo, FileDiff, LspStatus, McpResource, McpStatus, ProviderInfo, SessionInfo, SessionMessage } from "../../core/sdk"
 import { WorkspaceManager } from "../../core/workspace"
@@ -86,7 +87,7 @@ export async function buildSessionSnapshot({ ref, mgr, log, isSubmitting }: Snap
       }
     }
 
-    rt.sessions.set(session.id, session)
+    syncTrackedSession(rt.sessions, rt.sessionStatuses, session)
     const tree = await sessionTree(rt.sdk, rt.dir, session)
     const [messages, childMessages] = await relatedMessages(rt.sdk, rt.dir, session.id, tree.relatedSessionIds, rootMessageRes.data ?? [])
     const childSessions = relatedSessionMap(tree.sessions, session.id, tree.relatedSessionIds)

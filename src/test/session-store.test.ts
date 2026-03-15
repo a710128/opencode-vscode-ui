@@ -9,6 +9,12 @@ type Runtime = {
   dir: string
   name: string
   state: "ready"
+  sdk?: {
+    session: {
+      list(input: { directory: string; roots: true }): Promise<{ data?: SessionInfo[] }>
+      status(input: { directory: string }): Promise<{ data?: Record<string, SessionStatus> }>
+    }
+  }
   sessions: Map<string, SessionInfo>
   sessionStatuses: Map<string, SessionStatus>
   sessionsState: "idle" | "loading" | "ready" | "error"
@@ -30,7 +36,7 @@ function info(id: string, updated: number, parentID?: string): SessionInfo {
 
 function createHarness() {
   const root = info("root", 1)
-  const rt: Runtime = {
+  let rt: Runtime = {
     workspaceId: "ws-1",
     dir: "/workspace",
     name: "workspace",
@@ -69,12 +75,33 @@ function createHarness() {
   const store = new SessionStore(mgr as any, events as any, out as any)
 
   return {
-    rt,
+    get rt() {
+      return rt
+    },
+    setRuntime(next: Runtime) {
+      rt = next
+    },
     store,
     invalidations: () => invalidations,
     emit(event: SessionEvent) {
       listener?.({ workspaceId: rt.workspaceId, event })
     },
+  }
+}
+
+function deferred<T>() {
+  let resolve: (value: T) => void
+  let reject: (reason?: unknown) => void
+
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve
+    reject = nextReject
+  })
+
+  return {
+    promise,
+    resolve: resolve!,
+    reject: reject!,
   }
 }
 
@@ -123,5 +150,128 @@ describe("SessionStore child session filtering", () => {
 
     assert.deepEqual(harness.store.list(harness.rt.workspaceId).map((item) => item.id), [])
     assert.equal(harness.rt.sessionStatuses.has("root"), false)
+  })
+
+  test("coalesces concurrent refreshes so startup does not keep a partial later result", async () => {
+    const harness = createHarness()
+    const first = deferred<{ data?: SessionInfo[] }>()
+    const second = deferred<{ data?: SessionInfo[] }>()
+    let listCalls = 0
+
+    harness.rt.sessions.clear()
+    harness.rt.sessionStatuses.clear()
+    harness.rt.sessionsState = "idle"
+    harness.rt.sdk = {
+      session: {
+        list: () => {
+          listCalls += 1
+          return listCalls === 1 ? first.promise : second.promise
+        },
+        status: async () => ({
+          data: {
+            root: { type: "idle" },
+            second: { type: "busy" },
+          },
+        }),
+      },
+    }
+
+    const firstRefresh = harness.store.refresh(harness.rt.workspaceId, true)
+    const secondRefresh = harness.store.refresh(harness.rt.workspaceId, true)
+
+    assert.equal(listCalls, 1)
+
+    first.resolve({ data: [info("root", 1), info("second", 2)] })
+    second.resolve({ data: [info("root", 1)] })
+
+    const [firstResult, secondResult] = await Promise.all([firstRefresh, secondRefresh])
+
+    assert.equal(listCalls, 1)
+    assert.deepEqual(firstResult.map((item) => item.id), ["root", "second"])
+    assert.deepEqual(secondResult.map((item) => item.id), ["root", "second"])
+    assert.deepEqual(harness.store.list(harness.rt.workspaceId).map((item) => item.id), ["second", "root"])
+  })
+
+  test("does not reuse an inflight refresh after the runtime instance changes", async () => {
+    const harness = createHarness()
+    const first = deferred<{ data?: SessionInfo[] }>()
+    const second = deferred<{ data?: SessionInfo[] }>()
+    let firstCalls = 0
+    let secondCalls = 0
+
+    harness.rt.sessions.clear()
+    harness.rt.sessionStatuses.clear()
+    harness.rt.sessionsState = "idle"
+    harness.rt.sdk = {
+      session: {
+        list: () => {
+          firstCalls += 1
+          return first.promise
+        },
+        status: async () => ({ data: {} }),
+      },
+    }
+
+    const staleRefresh = harness.store.refresh(harness.rt.workspaceId, true)
+
+    const nextRoot = info("next-root", 3)
+    harness.setRuntime({
+      workspaceId: "ws-1",
+      dir: "/workspace",
+      name: "workspace",
+      state: "ready",
+      sessions: new Map(),
+      sessionStatuses: new Map(),
+      sessionsState: "idle",
+      sdk: {
+        session: {
+          list: () => {
+            secondCalls += 1
+            return second.promise
+          },
+          status: async () => ({
+            data: {
+              [nextRoot.id]: { type: "idle" },
+            },
+          }),
+        },
+      },
+    })
+
+    const freshRefresh = harness.store.refresh("ws-1", true)
+
+    assert.equal(firstCalls, 1)
+    assert.equal(secondCalls, 1)
+
+    first.resolve({ data: [info("stale-root", 1)] })
+    second.resolve({ data: [nextRoot] })
+
+    await Promise.all([staleRefresh, freshRefresh])
+
+    assert.deepEqual(harness.store.list("ws-1").map((item) => item.id), [nextRoot.id])
+  })
+
+  test("authoritative refresh clears root sessions that only came from snapshot preloading", async () => {
+    const harness = createHarness()
+    const opened = info("opened", 5)
+
+    harness.rt.sessions = new Map([[opened.id, opened]])
+    harness.rt.sessionStatuses = new Map([[opened.id, { type: "busy" }]])
+    harness.rt.sessionsState = "idle"
+    harness.rt.sdk = {
+      session: {
+        list: async () => ({
+          data: [],
+        }),
+        status: async () => ({
+          data: {},
+        }),
+      },
+    }
+
+    await harness.store.refresh(harness.rt.workspaceId, true)
+
+    assert.deepEqual(harness.store.list(harness.rt.workspaceId).map((item) => item.id), [])
+    assert.equal(harness.rt.sessionStatuses.has(opened.id), false)
   })
 })
