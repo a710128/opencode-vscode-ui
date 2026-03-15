@@ -42,6 +42,7 @@ export async function activate(ctx: vscode.ExtensionContext) {
 
   const folders = vscode.workspace.workspaceFolders ?? []
   await mgr.sync(folders)
+  await sessions.refreshAll()
   await events.sync()
 
   ctx.subscriptions.push(

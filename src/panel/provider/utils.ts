@@ -18,7 +18,7 @@ export function panelTitle(title: string) {
   return `${prefix}${clean.length > maxTitleLength ? `${clean.slice(0, maxTitleLength - 1)}…` : clean}`
 }
 
-export function panelIconPath(extensionUri: vscode.Uri) {
+export function panelIconPath(extensionUri: vscode.Uri): vscode.IconPath {
   return vscode.Uri.joinPath(extensionUri, "images", "logo.svg")
 }
 

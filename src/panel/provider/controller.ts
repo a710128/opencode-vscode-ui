@@ -251,6 +251,7 @@ export class SessionPanelController implements vscode.Disposable {
           ...this.current,
           ...deferredPayload,
         })
+        this.panel.iconPath = panelIconPath(this.extensionUri)
         await this.postDeferred(deferredPayload, `${reason}:deferred`)
         this.incrementalReady = true
       })
@@ -263,6 +264,7 @@ export class SessionPanelController implements vscode.Disposable {
 
   private async post(payload: SessionSnapshot, reason: string) {
     this.panel.title = panelTitle(payload.session?.title || this.ref.sessionId)
+    this.panel.iconPath = panelIconPath(this.extensionUri)
     await postToWebview(this.panel.webview, {
       type: "bootstrap",
       payload: boot(payload),
@@ -320,6 +322,7 @@ export class SessionPanelController implements vscode.Disposable {
 
     this.current = patch(next)
     this.panel.title = panelTitle(this.current.session?.title || this.ref.sessionId)
+    this.panel.iconPath = panelIconPath(this.extensionUri)
     if (this.incrementalReady && canPostIncrementalSessionEvent(event)) {
       await this.postEvent({ type: "sessionEvent", event })
       return

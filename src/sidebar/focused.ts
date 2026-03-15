@@ -46,15 +46,22 @@ export class FocusedSessionStore implements vscode.Disposable {
       if (!ref) {
         return
       }
+
       const rt = this.mgr.get(ref.workspaceId)
-      if (!rt || rt.state !== "ready" || !rt.sdk) {
+      if (rt?.state === "ready" && rt.sdk) {
+        if (this.state.status === "loading") {
+          void this.focus(ref)
+        }
+        return
+      }
+
+      if (!rt || (rt.state !== "ready" && this.state.status !== "loading")) {
         this.set({
-          status: "error",
+          status: "loading",
           ref,
           session: this.state.session,
           todos: [],
           diff: [],
-          error: rt?.err || "Workspace runtime is not ready.",
         })
       }
     })
@@ -88,11 +95,11 @@ export class FocusedSessionStore implements vscode.Disposable {
     const rt = this.mgr.get(ref.workspaceId)
     if (!rt || rt.state !== "ready" || !rt.sdk) {
       this.set({
-        status: "error",
+        status: "loading",
         ref,
+        session: this.state.session?.id === ref.sessionId ? this.state.session : undefined,
         todos: [],
         diff: [],
-        error: rt?.err || "Workspace runtime is not ready.",
       })
       return
     }
