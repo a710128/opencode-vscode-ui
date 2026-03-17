@@ -133,6 +133,8 @@ export function spawn(dir: string, port: number) {
     env.HTTPS_PROXY = proxy
     env.http_proxy = proxy
     env.https_proxy = proxy
+  } else {
+    clearEmptyProxyEnv(env)
   }
 
   return cp.spawn("opencode", ["serve", "--port", String(port), "--hostname", "127.0.0.1"], {
@@ -140,6 +142,16 @@ export function spawn(dir: string, port: number) {
     detached: process.platform !== "win32",
     env,
   })
+}
+
+function clearEmptyProxyEnv(env: NodeJS.ProcessEnv) {
+  for (const key of ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"] as const) {
+    const value = env[key]
+
+    if (typeof value === "string" && value.trim().length === 0) {
+      delete env[key]
+    }
+  }
 }
 
 export async function stop(proc?: cp.ChildProcess) {

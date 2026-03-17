@@ -25,7 +25,18 @@ export function getDisplaySettings(): DisplaySettings {
 }
 
 export function getHttpProxy() {
-  return vscode.workspace.getConfiguration(SECTION).get<string>(HTTP_PROXY_KEY, "").trim()
+  const config = vscode.workspace.getConfiguration(SECTION)
+  const proxy = config.get<string>(HTTP_PROXY_KEY, "").trim()
+
+  if (proxy) {
+    return proxy
+  }
+
+  if (hasInheritedProxy()) {
+    return ""
+  }
+
+  return vscode.workspace.getConfiguration("http").get<string>("proxy", "").trim()
 }
 
 export function affectsDisplaySettings(event: vscode.ConfigurationChangeEvent) {
@@ -36,6 +47,7 @@ export function affectsDisplaySettings(event: vscode.ConfigurationChangeEvent) {
 
 export function affectsHttpProxySetting(event: vscode.ConfigurationChangeEvent) {
   return event.affectsConfiguration(`${SECTION}.${HTTP_PROXY_KEY}`)
+    || event.affectsConfiguration("http.proxy")
 }
 
 export function openSettingsQuery() {
@@ -43,5 +55,14 @@ export function openSettingsQuery() {
 }
 
 export function proxyRestartMessage() {
-  return "OpenCode UI HTTP proxy changed. Restart the editor to apply it to opencode serve."
+  return "Proxy setting changed. Restart the editor to apply it to opencode serve."
+}
+
+function hasInheritedProxy() {
+  return [
+    process.env.HTTP_PROXY,
+    process.env.HTTPS_PROXY,
+    process.env.http_proxy,
+    process.env.https_proxy,
+  ].some((value) => typeof value === "string" && value.trim().length > 0)
 }

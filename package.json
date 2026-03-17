@@ -191,7 +191,7 @@
         "opencode-ui.httpProxy": {
           "type": "string",
           "default": "",
-          "description": "Optional HTTP_PROXY value used when launching opencode serve. Leave empty to inherit the existing environment. Requires editor restart to take effect.",
+          "description": "Optional HTTP_PROXY value used when launching opencode serve. Leave empty to inherit the existing environment, or fall back to VS Code http.proxy when no proxy env is present. Requires editor restart to take effect.",
           "scope": "machine-overridable"
         }
       }
