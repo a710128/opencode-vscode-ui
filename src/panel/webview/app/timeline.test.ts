@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, test } from "node:test"
 import type { FilePart, MessageInfo, MessagePart, SessionMessage, TextPart, ToolPart } from "../../../core/sdk"
+import { imagePreviewSide } from "./image-preview"
 import { createTimelineDerivationCache, imagePreviewUrl, reconcileTimelineBlocks } from "./timeline"
 
 function messageInfo(id: string, role: "user" | "assistant", extras?: Partial<MessageInfo>): MessageInfo {
@@ -127,5 +128,11 @@ describe("timeline image previews", () => {
     assert.equal(imagePreviewUrl(filePart({})), "data:image/png;base64,abc")
     assert.equal(imagePreviewUrl(filePart({ url: "file:///workspace/pasted.png" })), "")
     assert.equal(imagePreviewUrl(filePart({ mime: "text/plain", filename: "notes.txt", url: "data:text/plain;base64,abc" })), "")
+  })
+
+  test("places previews away from constrained viewport edges", () => {
+    assert.equal(imagePreviewSide({ top: 24, bottom: 48 }, 800), "below")
+    assert.equal(imagePreviewSide({ top: 420, bottom: 448 }, 800), "above")
+    assert.equal(imagePreviewSide({ top: 100, bottom: 180 }, 300), "below")
   })
 })

@@ -83,7 +83,6 @@
 .oc-imagePreview {
   position: absolute;
   left: 0;
-  bottom: calc(100% + 8px);
   z-index: 6;
   display: none;
   width: min(320px, 72vw);
@@ -93,6 +92,14 @@
   background: var(--oc-surface-control);
   box-shadow: 0 12px 32px color-mix(in srgb, black 28%, transparent 72%);
   pointer-events: none;
+}
+
+.oc-pill-file[data-preview-side="above"] .oc-imagePreview {
+  bottom: calc(100% + 8px);
+}
+
+.oc-pill-file[data-preview-side="below"] .oc-imagePreview {
+  top: calc(100% + 8px);
 }
 
 .oc-pill-file.has-imagePreview:hover .oc-imagePreview,

@@ -1,6 +1,7 @@
 import React from "react"
 import { parsePatch } from "diff"
 import type { FilePart, MessageInfo, MessagePart, SessionMessage, TextPart } from "../../../core/sdk"
+import { imagePreviewSide, type ImagePreviewSide } from "./image-preview"
 import { TranscriptVisibilityContext } from "./contexts"
 
 export type TimelineBlock =
@@ -124,6 +125,14 @@ function TimelineBlockView({
   block,
   diffMode,
 }: TimelineBlockViewProps) {
+  const [previewSides, setPreviewSides] = React.useState<Record<string, ImagePreviewSide>>({})
+  const placePreview = React.useCallback((partID: string, element: HTMLElement) => {
+    setPreviewSides((current) => ({
+      ...current,
+      [partID]: imagePreviewSide(element.getBoundingClientRect(), window.innerHeight),
+    }))
+  }, [])
+
   if (block.kind === "user-message") {
     const userText = primaryUserText(block.message)
     const userFiles = userAttachments(block.message)
@@ -144,17 +153,28 @@ function TimelineBlockView({
           {userText ? <MarkdownBlock content={userText.text || ""} /> : (showEmptyPrompt ? <div className="oc-partEmpty">No visible prompt text.</div> : null)}
           {userFiles.length > 0 ? (
             <div className="oc-attachmentRow">
-              {userFiles.map((part) => (
-                <span key={part.id} className={`oc-pill oc-pill-file${imagePreviewUrl(part) ? " has-imagePreview" : ""}`} tabIndex={imagePreviewUrl(part) ? 0 : undefined}>
-                  <span className="oc-pillFileType">{fileTypeLabel(part)}</span>
-                  <span className="oc-pillFilePath">{attachmentFilePath(part)}</span>
-                  {imagePreviewUrl(part) ? (
-                    <span className="oc-imagePreview" role="tooltip">
-                      <img src={imagePreviewUrl(part)} alt={attachmentFilePath(part)} />
-                    </span>
-                  ) : null}
-                </span>
-              ))}
+              {userFiles.map((part) => {
+                const previewUrl = imagePreviewUrl(part)
+                const filePath = attachmentFilePath(part)
+                return (
+                  <span
+                    key={part.id}
+                    className={`oc-pill oc-pill-file${previewUrl ? " has-imagePreview" : ""}`}
+                    data-preview-side={previewSides[part.id] ?? "above"}
+                    tabIndex={previewUrl ? 0 : undefined}
+                    onFocus={(event) => previewUrl && placePreview(part.id, event.currentTarget)}
+                    onMouseEnter={(event) => previewUrl && placePreview(part.id, event.currentTarget)}
+                  >
+                    <span className="oc-pillFileType">{fileTypeLabel(part)}</span>
+                    <span className="oc-pillFilePath">{filePath}</span>
+                    {previewUrl ? (
+                      <span className="oc-imagePreview" role="tooltip">
+                        <img src={previewUrl} alt={filePath} />
+                      </span>
+                    ) : null}
+                  </span>
+                )
+              })}
             </div>
           ) : null}
         </section>

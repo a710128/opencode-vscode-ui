@@ -19,6 +19,7 @@ import { absorbFileSelectionSuffix, composerMentions as mentionsFromParts, compo
 import { getSelectionOffsets, parseComposerEditor, renderComposerEditor, setCursorPosition, syncComposerPillSelection } from "./composer-editor-dom"
 import { autocompleteItemView, buildComposerMenuItems, mentionForQuery } from "./composer-menu"
 import { composerEnterIntent, composerTabIntent, cycleAgentName, isShortcutTarget, leaderAction, shouldEnterShellMode, shouldExitShellModeOnBackspace, type ComposerMode } from "./keyboard-shortcuts"
+import { imagePreviewSide, type ImagePreviewSide } from "./image-preview"
 import { buildModelPickerSections, ModelPicker } from "./model-picker"
 import { activeChildSessionId } from "./session-navigation"
 
@@ -54,6 +55,7 @@ export function App() {
   const [fileResults, setFileResults] = React.useState<ComposerPathResult[]>([])
   const [fileSearch, setFileSearch] = React.useState<{ status: "idle" | "searching" | "done"; query: string }>({ status: "idle", query: "" })
   const [composerDrag, setComposerDrag] = React.useState<null | "attachment" | "mention">(null)
+  const [composerPreviewSides, setComposerPreviewSides] = React.useState<Record<string, ImagePreviewSide>>({})
   const [modelPickerOpen, setModelPickerOpen] = React.useState(false)
   const timelineRef = React.useRef<HTMLDivElement | null>(null)
   const composerRef = React.useRef<HTMLDivElement | null>(null)
@@ -577,6 +579,13 @@ export function App() {
     }))
   }, [])
 
+  const placeComposerPreview = React.useCallback((id: string, element: HTMLElement) => {
+    setComposerPreviewSides((current) => ({
+      ...current,
+      [id]: imagePreviewSide(element.getBoundingClientRect(), window.innerHeight),
+    }))
+  }, [])
+
   const clearLeaderPending = React.useCallback(() => {
     leaderPendingRef.current = false
     setLeaderPending(false)
@@ -1057,6 +1066,8 @@ export function App() {
                         {state.pendingImageAttachments.length > 0 ? (
                           <PendingImageAttachmentRow
                             attachments={state.pendingImageAttachments}
+                            previewSides={composerPreviewSides}
+                            onPreviewPlace={placeComposerPreview}
                             onRemove={(id) => {
                               setState((current) => ({
                                 ...current,
@@ -1067,6 +1078,7 @@ export function App() {
                           />
                         ) : null}
                         {leaderPending ? <div className="oc-composerLeaderOverlay"><span className="oc-composerLeaderOverlayText">Ctrl + X Pressed</span></div> : null}
+                        <div className="oc-composerEditorWrap">
                         <div
                     ref={composerRef}
                     className={`oc-composerInput${composerMode === "shell" ? " is-shell" : ""}`}
@@ -1319,8 +1331,9 @@ export function App() {
                       event.preventDefault()
                       submit()
                     }}
-                  />
+                    />
                         {!state.draft.trim() && !composerFocused ? <div className="oc-composerPlaceholder" aria-hidden="true">{composerPlaceholder}</div> : null}
+                        </div>
                       </div>
                     <div className="oc-composerInfoWrap" ref={modelPickerRef}>
                       <ComposerInfo state={state} leaderPending={leaderPending} modelPickerOpen={modelPickerOpen} onToggleModelPicker={toggleModelPicker} onCycleVariant={() => cycleComposerVariant()} />
@@ -1533,14 +1546,34 @@ function ComposerInfo({
   )
 }
 
-function PendingImageAttachmentRow({ attachments, onRemove }: { attachments: ComposerImageAttachment[]; onRemove: (id: string) => void }) {
+function PendingImageAttachmentRow({
+  attachments,
+  previewSides,
+  onPreviewPlace,
+  onRemove,
+}: {
+  attachments: ComposerImageAttachment[]
+  previewSides: Record<string, ImagePreviewSide>
+  onPreviewPlace: (id: string, element: HTMLElement) => void
+  onRemove: (id: string) => void
+}) {
   return (
     <div className="oc-composerAttachmentRow" aria-label="Pending image attachments">
       {attachments.map((attachment) => (
-        <span className="oc-composerAttachmentChip" key={attachment.id} title={attachment.filename}>
+        <span
+          className="oc-composerAttachmentChip has-imagePreview"
+          data-preview-side={previewSides[attachment.id] ?? "below"}
+          key={attachment.id}
+          title={attachment.filename}
+          onFocus={(event) => onPreviewPlace(attachment.id, event.currentTarget)}
+          onMouseEnter={(event) => onPreviewPlace(attachment.id, event.currentTarget)}
+        >
           <img className="oc-composerAttachmentThumb" src={attachment.dataUrl} alt="" />
           <span className="oc-composerAttachmentName">{attachment.filename || "Pasted Image"}</span>
           <span className="oc-composerAttachmentMime">IMG</span>
+          <span className="oc-composerAttachmentPreview" role="tooltip">
+            <img src={attachment.dataUrl} alt="" />
+          </span>
           <button
             type="button"
             className="oc-composerAttachmentRemove"

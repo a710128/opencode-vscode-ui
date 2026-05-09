@@ -35,6 +35,11 @@
   min-height: 0;
 }
 
+.oc-composerEditorWrap {
+  position: relative;
+  min-height: 0;
+}
+
 .oc-composerAttachmentRow {
   display: flex;
   flex-wrap: wrap;
@@ -43,6 +48,7 @@
 }
 
 .oc-composerAttachmentChip {
+  position: relative;
   display: inline-flex;
   align-items: center;
   max-width: min(260px, 100%);
@@ -52,6 +58,14 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--oc-info) 10%, var(--oc-surface-control) 90%);
   color: var(--oc-fg-primary);
+}
+
+.oc-composerAttachmentChip.has-imagePreview {
+  cursor: zoom-in;
+}
+
+.oc-composerAttachmentChip.has-imagePreview:focus-within {
+  box-shadow: 0 0 0 1px var(--vscode-focusBorder, var(--oc-accent));
 }
 
 .oc-composerAttachmentThumb {
@@ -92,6 +106,40 @@
 .oc-composerAttachmentRemove:hover {
   background: color-mix(in srgb, var(--oc-danger) 16%, transparent 84%);
   color: var(--oc-fg-primary);
+}
+
+.oc-composerAttachmentPreview {
+  position: absolute;
+  left: 0;
+  z-index: 6;
+  display: none;
+  width: min(320px, 72vw);
+  max-height: min(260px, 44vh);
+  padding: 6px;
+  border: 1px solid var(--oc-border-strong);
+  background: var(--oc-surface-control);
+  box-shadow: 0 12px 32px color-mix(in srgb, black 28%, transparent 72%);
+  pointer-events: none;
+}
+
+.oc-composerAttachmentChip[data-preview-side="above"] .oc-composerAttachmentPreview {
+  bottom: calc(100% + 8px);
+}
+
+.oc-composerAttachmentChip[data-preview-side="below"] .oc-composerAttachmentPreview {
+  top: calc(100% + 8px);
+}
+
+.oc-composerAttachmentChip.has-imagePreview:hover .oc-composerAttachmentPreview,
+.oc-composerAttachmentChip.has-imagePreview:focus-within .oc-composerAttachmentPreview {
+  display: block;
+}
+
+.oc-composerAttachmentPreview img {
+  display: block;
+  width: 100%;
+  max-height: calc(min(260px, 44vh) - 12px);
+  object-fit: contain;
 }
 
 .oc-composerLeaderOverlay {
