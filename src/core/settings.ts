@@ -11,6 +11,7 @@ export type DisplaySettings = {
 const SECTION = "opencode-ui"
 
 export const HTTP_PROXY_KEY = "httpProxy"
+export const OPENCODE_EXECUTABLE_PATH_KEY = "executablePath"
 export const SHOW_INTERNALS_KEY = "showInternals"
 export const SHOW_THINKING_KEY = "showThinking"
 export const DIFF_MODE_KEY = "diffMode"
@@ -39,6 +40,10 @@ export function getHttpProxy() {
   return vscode.workspace.getConfiguration("http").get<string>("proxy", "").trim()
 }
 
+export function getOpencodeExecutablePath() {
+  return vscode.workspace.getConfiguration(SECTION).get<string>(OPENCODE_EXECUTABLE_PATH_KEY, "").trim() || "opencode"
+}
+
 export function affectsDisplaySettings(event: vscode.ConfigurationChangeEvent) {
   return event.affectsConfiguration(`${SECTION}.${SHOW_INTERNALS_KEY}`)
     || event.affectsConfiguration(`${SECTION}.${SHOW_THINKING_KEY}`)
@@ -50,12 +55,20 @@ export function affectsHttpProxySetting(event: vscode.ConfigurationChangeEvent) 
     || event.affectsConfiguration("http.proxy")
 }
 
+export function affectsOpencodeExecutablePathSetting(event: vscode.ConfigurationChangeEvent) {
+  return event.affectsConfiguration(`${SECTION}.${OPENCODE_EXECUTABLE_PATH_KEY}`)
+}
+
 export function openSettingsQuery() {
   return "@ext:zgy.opencode-vscode-ui"
 }
 
 export function proxyRestartMessage() {
   return "Proxy setting changed. Restart the editor to apply it to opencode serve."
+}
+
+export function executablePathRestartMessage() {
+  return "OpenCode executable path changed. Restart the editor to apply it to opencode serve."
 }
 
 function hasInheritedProxy() {

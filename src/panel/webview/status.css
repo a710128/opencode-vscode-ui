@@ -35,6 +35,65 @@
   min-height: 0;
 }
 
+.oc-composerAttachmentRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px 0;
+}
+
+.oc-composerAttachmentChip {
+  display: inline-flex;
+  align-items: center;
+  max-width: min(260px, 100%);
+  gap: 6px;
+  padding: 3px 6px 3px 4px;
+  border: 1px solid color-mix(in srgb, var(--oc-info) 42%, var(--oc-border-strong) 58%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--oc-info) 10%, var(--oc-surface-control) 90%);
+  color: var(--oc-fg-primary);
+}
+
+.oc-composerAttachmentThumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  object-fit: cover;
+  background: var(--oc-surface-canvas);
+}
+
+.oc-composerAttachmentName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--oc-font-size-sm);
+}
+
+.oc-composerAttachmentMime {
+  color: var(--oc-fg-muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.oc-composerAttachmentRemove {
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--oc-fg-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.oc-composerAttachmentRemove:hover {
+  background: color-mix(in srgb, var(--oc-danger) 16%, transparent 84%);
+  color: var(--oc-fg-primary);
+}
+
 .oc-composerLeaderOverlay {
   position: absolute;
   inset: 0;

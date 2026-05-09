@@ -64,6 +64,13 @@ export type ComposerFileSelection = {
   endLine?: number
 }
 
+export type ComposerImageAttachment = {
+  id: string
+  filename: string
+  mime: string
+  dataUrl: string
+}
+
 export type ComposerPathResult = {
   path: string
   kind: ComposerPathKind
@@ -148,6 +155,9 @@ export type ComposerPromptPart =
       mimeType?: string
       source: PromptSource
     }
+  | ({
+      type: "image"
+    } & ComposerImageAttachment)
 
 export type WebviewMessage =
   | {

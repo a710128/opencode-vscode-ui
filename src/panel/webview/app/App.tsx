@@ -1,5 +1,6 @@
 import React from "react"
-import type { ComposerPathResult, ComposerPromptPart, SessionBootstrap } from "../../../bridge/types"
+import { imageMimeFromFilename, isSupportedImageFilename, supportedImageMime } from "../../../bridge/image-attachments"
+import type { ComposerImageAttachment, ComposerPathResult, ComposerPromptPart, SessionBootstrap } from "../../../bridge/types"
 import type { QuestionRequest } from "../../../core/sdk"
 import { ChildMessagesContext, ChildSessionsContext, WorkspaceDirContext } from "./contexts"
 import { answerKey, PermissionDock, QuestionDock, RetryStatus, SessionNav, SubagentNotice } from "./docks"
@@ -52,7 +53,7 @@ export function App() {
   const [pendingMcpActions, setPendingMcpActions] = React.useState<Record<string, boolean>>({})
   const [fileResults, setFileResults] = React.useState<ComposerPathResult[]>([])
   const [fileSearch, setFileSearch] = React.useState<{ status: "idle" | "searching" | "done"; query: string }>({ status: "idle", query: "" })
-  const [composerDrag, setComposerDrag] = React.useState<null | "mention">(null)
+  const [composerDrag, setComposerDrag] = React.useState<null | "attachment" | "mention">(null)
   const [modelPickerOpen, setModelPickerOpen] = React.useState(false)
   const timelineRef = React.useRef<HTMLDivElement | null>(null)
   const composerRef = React.useRef<HTMLDivElement | null>(null)
@@ -198,6 +199,7 @@ export function App() {
       draft: "",
       composerParts: emptyComposerParts(),
       composerMentions: [],
+      pendingImageAttachments: [],
       composerMentionAgentOverride: undefined,
       error: "",
     }))
@@ -247,7 +249,9 @@ export function App() {
 
   const onRestoreComposer = React.useCallback((payload: { parts: ComposerPromptPart[] }) => {
     const parts = composerPartsFromPromptParts(payload.parts)
+    const pendingImageAttachments = imageAttachmentsFromPromptParts(payload.parts)
     const result = setComposerState(parts, "")
+    setState((current) => ({ ...current, pendingImageAttachments }))
     restoreComposerCursor(result.draft, result.draft.length)
   }, [restoreComposerCursor, setComposerState])
 
@@ -339,13 +343,32 @@ export function App() {
     }
   }, [modelPickerOpen])
 
+  const addImageFiles = React.useCallback(async (files: File[], unsupportedNames: string[] = []) => {
+    const results = await Promise.allSettled(files.map(readImageAttachment))
+    const attachments = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : [])
+    const failed = results.flatMap((result, index) => result.status === "rejected" ? [files[index]?.name || "image"] : [])
+    const messages = [
+      unsupportedNames.length > 0 ? `Unsupported image format: ${unsupportedNames.join(", ")}` : "",
+      failed.length > 0 ? `Failed to read image: ${failed.join(", ")}` : "",
+    ].filter(Boolean)
+
+    setState((current) => ({
+      ...current,
+      pendingImageAttachments: attachments.length > 0
+        ? [...current.pendingImageAttachments, ...attachments]
+        : current.pendingImageAttachments,
+      error: messages.join(" "),
+    }))
+  }, [])
+
   React.useEffect(() => {
     const onDragOver = (event: DragEvent) => {
-      if (!supportsComposerDrop(event.dataTransfer)) {
+      const drag = supportsComposerDrop(event.dataTransfer)
+      if (!drag) {
         return
       }
       event.preventDefault()
-      setComposerDrag("mention")
+      setComposerDrag(drag)
     }
 
     const onDragLeave = (event: DragEvent) => {
@@ -355,6 +378,14 @@ export function App() {
     }
 
     const onDrop = (event: DragEvent) => {
+      const imageBatch = imageFileBatchFromData(event.dataTransfer)
+      if (imageBatch.files.length > 0 || imageBatch.unsupportedNames.length > 0) {
+        event.preventDefault()
+        setComposerDrag(null)
+        void addImageFiles(imageBatch.files, imageBatch.unsupportedNames)
+        return
+      }
+
       const mentions = droppedFileMentions(event.dataTransfer, state.bootstrap.sessionRef.dir)
       setComposerDrag(null)
       if (mentions.length === 0) {
@@ -393,7 +424,7 @@ export function App() {
       document.removeEventListener("dragleave", onDragLeave)
       document.removeEventListener("drop", onDrop)
     }
-  }, [composerFocused, restoreComposerCursor, setComposerState, state.bootstrap.sessionRef.dir, state.composerParts, state.draft])
+  }, [addImageFiles, composerFocused, restoreComposerCursor, setComposerState, state.bootstrap.sessionRef.dir, state.composerParts, state.draft])
 
   React.useLayoutEffect(() => {
     const input = composerRef.current
@@ -428,7 +459,12 @@ export function App() {
   }, [])
 
   const submit = React.useCallback(() => {
-    if (!state.draft.trim() || blocked) {
+    const hasImages = state.pendingImageAttachments.length > 0
+    if (composerMode === "shell" && !state.draft.trim()) {
+      return
+    }
+
+    if ((!state.draft.trim() && !hasImages) || blocked) {
       return
     }
 
@@ -442,6 +478,7 @@ export function App() {
         draft: "",
         composerParts: emptyComposerParts(),
         composerMentions: [],
+        pendingImageAttachments: [],
         composerMentionAgentOverride: undefined,
         error: "",
       }))
@@ -476,6 +513,7 @@ export function App() {
           draft: "",
           composerParts: emptyComposerParts(),
           composerMentions: [],
+          pendingImageAttachments: [],
           composerMentionAgentOverride: undefined,
           error: "",
         }))
@@ -493,7 +531,13 @@ export function App() {
     }
 
     const mentions = mentionsFromParts(finalized)
-    const parts = buildComposerSubmitParts(draft, mentions)
+    const parts = [
+      ...buildComposerSubmitParts(draft, mentions),
+      ...state.pendingImageAttachments.map((attachment): ComposerPromptPart => ({
+        type: "image",
+        ...attachment,
+      })),
+    ]
     vscode.postMessage({
       type: "submit",
       text: draft,
@@ -507,10 +551,11 @@ export function App() {
       draft: "",
       composerParts: emptyComposerParts(),
       composerMentions: [],
+      pendingImageAttachments: [],
       composerMentionAgentOverride: undefined,
       error: "",
     }))
-  }, [blocked, composerMode, currentSelection, exitShellMode, state.composerParts, state.snapshot.commands])
+  }, [blocked, composerMode, currentSelection, state.composerParts, state.draft, state.pendingImageAttachments, state.snapshot.commands, state.snapshot.providers.length])
 
   const composerPlaceholder = composerMode === "shell"
     ? "Enter shell command to run in this workspace."
@@ -526,6 +571,7 @@ export function App() {
       draft: "",
       composerParts: emptyComposerParts(),
       composerMentions: [],
+      pendingImageAttachments: [],
       composerMentionAgentOverride: undefined,
       error: "",
     }))
@@ -822,6 +868,7 @@ export function App() {
           draft: "",
           composerParts: emptyComposerParts(),
           composerMentions: [],
+          pendingImageAttachments: [],
           composerAgentOverride: undefined,
           composerMentionAgentOverride: undefined,
           error: "",
@@ -1005,8 +1052,20 @@ export function App() {
           {!blocked && !isChildSession ? (
             <section className={`oc-composer${leaderPending ? " is-leaderPending" : ""}${composerMode === "shell" ? " is-shell" : ""}`}>
               <div className="oc-composerBody">
-                    {composerDrag ? <div className="oc-composerDropOverlay">Drop to @mention file</div> : null}
+                    {composerDrag ? <div className="oc-composerDropOverlay">{composerDrag === "attachment" ? "Drop to attach image" : "Drop to @mention file"}</div> : null}
                     <div className="oc-composerInputWrap">
+                        {state.pendingImageAttachments.length > 0 ? (
+                          <PendingImageAttachmentRow
+                            attachments={state.pendingImageAttachments}
+                            onRemove={(id) => {
+                              setState((current) => ({
+                                ...current,
+                                pendingImageAttachments: current.pendingImageAttachments.filter((attachment) => attachment.id !== id),
+                                error: "",
+                              }))
+                            }}
+                          />
+                        ) : null}
                         {leaderPending ? <div className="oc-composerLeaderOverlay"><span className="oc-composerLeaderOverlayText">Ctrl + X Pressed</span></div> : null}
                         <div
                     ref={composerRef}
@@ -1039,6 +1098,13 @@ export function App() {
                       ensureComposerCursorVisible(event.currentTarget)
                     }}
                     onPaste={(event) => {
+                      const imageBatch = imageFileBatchFromData(event.clipboardData)
+                      if (imageBatch.files.length > 0 || imageBatch.unsupportedNames.length > 0) {
+                        event.preventDefault()
+                        void addImageFiles(imageBatch.files, imageBatch.unsupportedNames)
+                        return
+                      }
+
                       const text = event.clipboardData.getData("text/plain")
                       if (!text) {
                         return
@@ -1467,8 +1533,36 @@ function ComposerInfo({
   )
 }
 
+function PendingImageAttachmentRow({ attachments, onRemove }: { attachments: ComposerImageAttachment[]; onRemove: (id: string) => void }) {
+  return (
+    <div className="oc-composerAttachmentRow" aria-label="Pending image attachments">
+      {attachments.map((attachment) => (
+        <span className="oc-composerAttachmentChip" key={attachment.id} title={attachment.filename}>
+          <img className="oc-composerAttachmentThumb" src={attachment.dataUrl} alt="" />
+          <span className="oc-composerAttachmentName">{attachment.filename || "Pasted Image"}</span>
+          <span className="oc-composerAttachmentMime">IMG</span>
+          <button
+            type="button"
+            className="oc-composerAttachmentRemove"
+            aria-label={`Remove ${attachment.filename || "image attachment"}`}
+            onClick={() => onRemove(attachment.id)}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function supportsComposerDrop(data: DataTransfer | null) {
+  if (hasImageData(data)) {
+    return "attachment" as const
+  }
+
   return droppedFileMentions(data, "").length > 0
+    ? "mention" as const
+    : null
 }
 
 function composerPartsFromPromptParts(parts: ComposerPromptPart[]): ComposerEditorPart[] {
@@ -1510,6 +1604,10 @@ function composerPartsFromPromptParts(parts: ComposerPromptPart[]): ComposerEdit
       continue
     }
 
+    if (part.type === "image") {
+      continue
+    }
+
     next.push({
       type: "agent",
       name: part.name,
@@ -1521,6 +1619,80 @@ function composerPartsFromPromptParts(parts: ComposerPromptPart[]): ComposerEdit
   }
 
   return ensureTextPart(next)
+}
+
+function imageAttachmentsFromPromptParts(parts: ComposerPromptPart[]) {
+  return parts.flatMap((part): ComposerImageAttachment[] => part.type === "image" ? [{
+    id: part.id,
+    filename: part.filename,
+    mime: part.mime,
+    dataUrl: part.dataUrl,
+  }] : [])
+}
+
+function imageFileBatchFromData(data: DataTransfer | null) {
+  const files = Array.from(data?.files ?? [])
+  const imageFiles: File[] = []
+  const unsupportedNames: string[] = []
+
+  for (const file of files) {
+    const mime = supportedImageMime(file.type) ?? imageMimeFromFilename(file.name)
+    if (mime) {
+      imageFiles.push(file)
+      continue
+    }
+
+    if (isImageLikeFile(file)) {
+      unsupportedNames.push(file.name || file.type || "image")
+    }
+  }
+
+  return { files: imageFiles, unsupportedNames }
+}
+
+function hasImageData(data: DataTransfer | null) {
+  if (!data) {
+    return false
+  }
+
+  if (imageFileBatchFromData(data).files.length > 0) {
+    return true
+  }
+
+  return Array.from(data.items ?? []).some((item) => item.kind === "file" && item.type.startsWith("image/"))
+}
+
+function isImageLikeFile(file: File) {
+  return file.type.startsWith("image/") || isSupportedImageFilename(file.name)
+}
+
+async function readImageAttachment(file: File): Promise<ComposerImageAttachment> {
+  const mime = supportedImageMime(file.type) ?? imageMimeFromFilename(file.name)
+  if (!mime) {
+    throw new Error("Unsupported image format")
+  }
+
+  const dataUrl = normalizeImageDataUrl(await readFileAsDataUrl(file), mime)
+  return {
+    id: `image:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+    filename: file.name || "Pasted Image",
+    mime,
+    dataUrl,
+  }
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error("Failed to read image"))
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Failed to read image"))
+    reader.readAsDataURL(file)
+  })
+}
+
+function normalizeImageDataUrl(dataUrl: string, mime: string) {
+  const comma = dataUrl.indexOf(",")
+  return comma >= 0 ? `data:${mime};base64,${dataUrl.slice(comma + 1)}` : dataUrl
 }
 
 function parseRestoredComposerFile(part: Extract<ComposerPromptPart, { type: "file" }>) {

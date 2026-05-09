@@ -1,4 +1,4 @@
-import type { ComposerFileSelection, ComposerPathKind, SessionBootstrap, SessionSnapshot } from "../../../bridge/types"
+import type { ComposerFileSelection, ComposerImageAttachment, ComposerPathKind, SessionBootstrap, SessionSnapshot } from "../../../bridge/types"
 import type { DisplaySettings } from "../../../core/settings"
 import type { AgentInfo, CommandInfo, FileDiff, LspStatus, McpResource, McpStatus, MessageInfo, PermissionRequest, ProviderInfo, QuestionRequest, SessionInfo, SessionMessage, SessionStatus, Todo } from "../../../core/sdk"
 
@@ -98,6 +98,7 @@ export type AppState = {
   draft: string
   composerParts: ComposerEditorPart[]
   composerMentions: ComposerMention[]
+  pendingImageAttachments: ComposerImageAttachment[]
   composerAgentOverride?: string
   composerMentionAgentOverride?: string
   composerModelOverrides: Record<string, ComposerModelRef>
@@ -161,6 +162,7 @@ export function createInitialState(initialRef: SessionBootstrap["sessionRef"] | 
     draft: "",
     composerParts: [{ type: "text", content: "", start: 0, end: 0 }],
     composerMentions: [],
+    pendingImageAttachments: [],
     composerAgentOverride: sameSession ? persisted?.composerAgentOverride : undefined,
     composerMentionAgentOverride: undefined,
     composerModelOverrides: sameSession ? normalizeModelMap(persisted?.composerModelOverrides) : {},

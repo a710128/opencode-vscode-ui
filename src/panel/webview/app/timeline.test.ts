@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, test } from "node:test"
-import type { MessageInfo, MessagePart, SessionMessage, TextPart, ToolPart } from "../../../core/sdk"
-import { createTimelineDerivationCache, reconcileTimelineBlocks } from "./timeline"
+import type { FilePart, MessageInfo, MessagePart, SessionMessage, TextPart, ToolPart } from "../../../core/sdk"
+import { createTimelineDerivationCache, imagePreviewUrl, reconcileTimelineBlocks } from "./timeline"
 
 function messageInfo(id: string, role: "user" | "assistant", extras?: Partial<MessageInfo>): MessageInfo {
   return {
@@ -36,6 +36,19 @@ function toolPart(id: string, messageID: string, tool: string, status: ToolPart[
     state: {
       status,
     },
+  }
+}
+
+function filePart(overrides: Partial<FilePart>): FilePart {
+  return {
+    id: "file-1",
+    sessionID: "session-1",
+    messageID: "message-1",
+    type: "file",
+    mime: "image/png",
+    filename: "pasted.png",
+    url: "data:image/png;base64,abc",
+    ...overrides,
   }
 }
 
@@ -106,5 +119,13 @@ describe("timeline block reconciliation", () => {
     assert.equal(second[2]?.kind, "assistant-part")
     assert.equal(second[2]?.kind === "assistant-part" ? second[2].part : undefined, appendedTool)
     assert.equal(second[3]?.kind === "assistant-meta" ? second[3].messages[0] : undefined, nextAssistant)
+  })
+})
+
+describe("timeline image previews", () => {
+  test("shows previews only for data URL images", () => {
+    assert.equal(imagePreviewUrl(filePart({})), "data:image/png;base64,abc")
+    assert.equal(imagePreviewUrl(filePart({ url: "file:///workspace/pasted.png" })), "")
+    assert.equal(imagePreviewUrl(filePart({ mime: "text/plain", filename: "notes.txt", url: "data:text/plain;base64,abc" })), "")
   })
 })

@@ -193,6 +193,12 @@
           "default": "",
           "description": "Optional HTTP_PROXY value used when launching opencode serve. Leave empty to inherit the existing environment, or fall back to VS Code http.proxy when no proxy env is present. Requires editor restart to take effect.",
           "scope": "machine-overridable"
+        },
+        "opencode-ui.executablePath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional opencode executable path used when launching opencode serve and checking opencode availability. Leave empty to resolve opencode from PATH. Requires editor restart to take effect.",
+          "scope": "machine-overridable"
         }
       }
     },

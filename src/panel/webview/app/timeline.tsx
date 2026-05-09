@@ -145,9 +145,14 @@ function TimelineBlockView({
           {userFiles.length > 0 ? (
             <div className="oc-attachmentRow">
               {userFiles.map((part) => (
-                <span key={part.id} className="oc-pill oc-pill-file">
+                <span key={part.id} className={`oc-pill oc-pill-file${imagePreviewUrl(part) ? " has-imagePreview" : ""}`} tabIndex={imagePreviewUrl(part) ? 0 : undefined}>
                   <span className="oc-pillFileType">{fileTypeLabel(part)}</span>
                   <span className="oc-pillFilePath">{attachmentFilePath(part)}</span>
+                  {imagePreviewUrl(part) ? (
+                    <span className="oc-imagePreview" role="tooltip">
+                      <img src={imagePreviewUrl(part)} alt={attachmentFilePath(part)} />
+                    </span>
+                  ) : null}
                 </span>
               ))}
             </div>
@@ -516,6 +521,10 @@ function fileTypeLabel(part: FilePart) {
   if (mime.includes("javascript") || mime.includes("typescript") || mime.includes("jsx") || mime.includes("tsx") || mime.includes("html") || mime.includes("css") || mime.includes("xml") || mime.includes("python") || mime.includes("java") || mime.includes("rust") || mime.includes("go") || mime.includes("php") || mime.includes("ruby") || mime.includes("shellscript") || mime.includes("x-sh") || /\.(c|cc|cpp|cs|go|java|js|jsx|mjs|cjs|ts|tsx|py|rb|rs|php|swift|kt|kts|scala|sh|bash|zsh|fish|html|css|scss|sass|less|xml|sql)$/.test(path)) return "CODE"
   if (path.endsWith(".txt") || path.endsWith(".log")) return "TXT"
   return "TXT"
+}
+
+export function imagePreviewUrl(part: FilePart) {
+  return fileTypeLabel(part) === "IMG" && part.url.startsWith("data:image/") ? part.url : ""
 }
 
 function latestActiveToolId(parts: MessagePart[]) {

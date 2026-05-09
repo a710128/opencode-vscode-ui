@@ -1,10 +1,15 @@
 import * as cp from "node:child_process"
 import * as vscode from "vscode"
+import { getOpencodeExecutablePath } from "./settings"
 import type { WorkspaceRuntime } from "./server"
 
 const MISSING_OPENCODE_MARKERS = [
   'command "opencode" was not found',
   'command "opencode" is not executable',
+  "failed to start opencode:",
+  "was not found on PATH",
+  "was not found on the current host PATH",
+  "is not executable",
 ]
 
 export function isMissingOpencodeError(message?: string) {
@@ -18,7 +23,7 @@ export function isMissingOpencodeError(message?: string) {
 export function missingOpencodeMessage(rt?: Pick<WorkspaceRuntime, "name">) {
   const host = vscode.env.remoteName || "local"
   const target = rt?.name ? ` for ${rt.name}` : ""
-  return `OpenCode UI could not start opencode${target}. Install the opencode CLI on the current ${host} host and ensure it is available on PATH.`
+  return `OpenCode UI could not start opencode${target}. Install the opencode CLI on the current ${host} host and ensure it is available on PATH, or set OpenCode UI: Executable Path.`
 }
 
 export function runtimeNotReadyMessage(rt?: WorkspaceRuntime) {
@@ -38,8 +43,9 @@ export function runtimeNotReadyMessage(rt?: WorkspaceRuntime) {
 }
 
 export async function checkOpencodeAvailable() {
+  const executable = getOpencodeExecutablePath()
   return await new Promise<{ ok: true; output: string } | { ok: false; message: string }>((resolve) => {
-    const proc = cp.spawn("opencode", ["--version"], {
+    const proc = cp.spawn(executable, ["--version"], {
       env: {
         ...process.env,
         OPENCODE_CALLER: "vscode-ui",
@@ -72,12 +78,13 @@ export async function checkOpencodeAvailable() {
 
     proc.once("error", (err: NodeJS.ErrnoException) => {
       if (err.code === "ENOENT") {
-        finish({ ok: false, message: 'command "opencode" was not found on PATH' })
+        const detail = executable === "opencode" ? "was not found on PATH" : "was not found"
+        finish({ ok: false, message: `command "${executable}" ${detail}` })
         return
       }
 
       if (err.code === "EACCES") {
-        finish({ ok: false, message: 'command "opencode" is not executable' })
+        finish({ ok: false, message: `command "${executable}" is not executable` })
         return
       }
 

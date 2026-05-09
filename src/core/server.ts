@@ -1,6 +1,6 @@
 import * as cp from "node:child_process"
 import * as net from "node:net"
-import { getHttpProxy } from "./settings"
+import { getHttpProxy, getOpencodeExecutablePath } from "./settings"
 import type { Client, SessionInfo, SessionStatus } from "./sdk"
 
 export type RuntimeState = "starting" | "ready" | "error" | "stopped" | "stopping"
@@ -137,7 +137,9 @@ export function spawn(dir: string, port: number) {
     clearEmptyProxyEnv(env)
   }
 
-  return cp.spawn("opencode", ["serve", "--port", String(port), "--hostname", "127.0.0.1"], {
+  const executable = getOpencodeExecutablePath()
+
+  return cp.spawn(executable, ["serve", "--port", String(port), "--hostname", "127.0.0.1"], {
     cwd: dir,
     detached: process.platform !== "win32",
     env,
@@ -217,12 +219,14 @@ function wait(ms: number) {
 }
 
 function formatSpawnError(err: NodeJS.ErrnoException) {
+  const executable = getOpencodeExecutablePath()
   if (err.code === "ENOENT") {
-    return 'failed to start opencode: command "opencode" was not found on the current host PATH'
+    const detail = executable === "opencode" ? "was not found on the current host PATH" : "was not found"
+    return `failed to start opencode: command "${executable}" ${detail}`
   }
 
   if (err.code === "EACCES") {
-    return 'failed to start opencode: command "opencode" is not executable on the current host'
+    return `failed to start opencode: command "${executable}" is not executable on the current host`
   }
 
   const message = err.message || String(err)

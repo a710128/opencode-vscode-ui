@@ -2,7 +2,7 @@ import * as vscode from "vscode"
 import { SESSION_PANEL_VIEW_TYPE } from "./bridge/types"
 import { commands } from "./core/commands"
 import { EventHub } from "./core/events"
-import { affectsHttpProxySetting, proxyRestartMessage } from "./core/settings"
+import { affectsHttpProxySetting, affectsOpencodeExecutablePathSetting, executablePathRestartMessage, proxyRestartMessage } from "./core/settings"
 import { SessionStore } from "./core/session"
 import { TabManager } from "./core/tabs"
 import { WorkspaceManager } from "./core/workspace"
@@ -47,11 +47,19 @@ export async function activate(ctx: vscode.ExtensionContext) {
 
   ctx.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(async (event) => {
-      if (!affectsHttpProxySetting(event)) {
+      let message = ""
+
+      if (affectsOpencodeExecutablePathSetting(event)) {
+        message = executablePathRestartMessage()
+      } else if (affectsHttpProxySetting(event)) {
+        message = proxyRestartMessage()
+      }
+
+      if (!message) {
         return
       }
 
-      const action = await vscode.window.showInformationMessage(proxyRestartMessage(), "Reload Window")
+      const action = await vscode.window.showInformationMessage(message, "Reload Window")
       if (action === "Reload Window") {
         await vscode.commands.executeCommand("workbench.action.reloadWindow")
       }

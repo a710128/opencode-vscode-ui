@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import * as path from "node:path"
 import { URL } from "node:url"
+import { imageMimeFromFilename, supportedImageMime } from "../../bridge/image-attachments"
 import { postToWebview } from "../../bridge/host"
 import type { ComposerPromptPart, SessionPanelRef } from "../../bridge/types"
 import type { MessageInfo, MessagePart, PermissionReply, PromptPartInput } from "../../core/sdk"
@@ -26,13 +27,14 @@ type ActionContext = {
 }
 
 export async function submit(ctx: ActionContext, textValue: string, parts?: ComposerPromptPart[], agent?: string, model?: MessageInfo["model"], variant?: string) {
-  if (!textValue.trim() || ctx.state.disposed) {
+  if ((!textValue.trim() && !hasPromptContent(parts)) || ctx.state.disposed) {
     return
   }
 
   const rt = ctx.mgr.get(ctx.ref.workspaceId)
 
   if (!rt || rt.state !== "ready" || !rt.sdk) {
+    await restoreSubmittedComposer(ctx.panel.webview, textValue, parts)
     await fail(ctx.panel.webview, "Workspace server is not ready.")
     return
   }
@@ -55,6 +57,7 @@ export async function submit(ctx: ActionContext, textValue: string, parts?: Comp
   } catch (err) {
     const message = textError(err)
     ctx.log(`submit failed: ${message}`)
+    await restoreSubmittedComposer(ctx.panel.webview, textValue, parts)
     await vscode.window.showErrorMessage(`OpenCode message send failed for ${rt.name}: ${message}`)
     await fail(ctx.panel.webview, message)
   } finally {
@@ -372,6 +375,15 @@ function undoRestoreParts(message: { parts: MessagePart[] }): ComposerPromptPart
 
   const files = message.parts.flatMap((part): ComposerPromptPart[] => {
     if (part.type !== "file" || !part.source) {
+      if (part.type === "file" && supportedImageMime(part.mime) && part.url.startsWith("data:")) {
+        return [{
+          type: "image",
+          id: `restored:${part.id}`,
+          filename: part.filename || "Pasted Image",
+          mime: part.mime,
+          dataUrl: part.url,
+        }]
+      }
       return []
     }
 
@@ -525,11 +537,22 @@ function toPromptParts(workspaceDir: string, textValue: string, parts?: Composer
       continue
     }
 
+    if (part.type === "image") {
+      out.push({
+        type: "file",
+        mime: part.mime,
+        filename: part.filename,
+        url: part.dataUrl,
+      })
+      continue
+    }
+
     const filePath = absolutePath(workspaceDir, part.path)
+    const mime = imageMimeFromFilename(part.path) ?? "text/plain"
 
     out.push({
       type: "file",
-      mime: "text/plain",
+      mime,
       filename: path.basename(part.path),
       url: fileUrl(filePath, part.selection),
       source: {
@@ -541,6 +564,27 @@ function toPromptParts(workspaceDir: string, textValue: string, parts?: Composer
   }
 
   return out.length > 0 ? out : [{ type: "text", text: textValue }]
+}
+
+function hasPromptContent(parts?: ComposerPromptPart[]) {
+  return !!parts?.some((part) => part.type === "image" || (part.type === "text" && part.text.trim()))
+}
+
+async function restoreSubmittedComposer(webview: vscode.Webview, textValue: string, parts?: ComposerPromptPart[]) {
+  const restoreParts = parts && parts.length > 0
+    ? parts
+    : textValue.trim()
+      ? [{ type: "text" as const, text: textValue }]
+      : []
+
+  if (restoreParts.length === 0) {
+    return
+  }
+
+  await postToWebview(webview, {
+    type: "restoreComposer",
+    parts: restoreParts,
+  })
 }
 
 function absolutePath(dir: string, file: string) {
