@@ -14,11 +14,11 @@ export function commands(
   sessions: SessionStore,
   out: vscode.OutputChannel,
   tabs: TabManager,
+  syncTargets: () => Promise<void>,
 ) {
   ctx.subscriptions.push(
     vscode.commands.registerCommand("opencode-ui.refresh", async () => {
-      const folders = vscode.workspace.workspaceFolders ?? []
-      await mgr.sync(folders)
+      await syncTargets()
       await sessions.refreshAll()
     }),
     vscode.commands.registerCommand("opencode-ui.openOutput", () => {
@@ -42,14 +42,14 @@ export function commands(
       await vscode.window.showErrorMessage(`OpenCode UI environment check failed on ${host}: ${result.message}`)
     }),
     vscode.commands.registerCommand("opencode-ui.newSession", async (item?: WorkspaceItem) => {
-      const rt = item?.runtime ?? firstRuntime(mgr)
+      const rt = await readyRuntime(mgr, item?.runtime ?? firstRuntime(mgr))
 
       if (!rt) {
         await vscode.window.showInformationMessage("Open a workspace folder first.")
         return
       }
 
-      if (!rt || rt.state !== "ready") {
+      if (rt.state !== "ready") {
         await vscode.window.showErrorMessage(runtimeNotReadyMessage(rt))
         return
       }
@@ -57,20 +57,35 @@ export function commands(
       await vscode.commands.executeCommand("opencode-ui.newSessionAndOpen", workspaceRef(rt))
     }),
     vscode.commands.registerCommand("opencode-ui.newSessionAndOpen", async (workspace?: WorkspaceRef) => {
-      const rt = workspace ? mgr.get(workspace.workspaceId) : firstRuntime(mgr)
+      const rt = await readyRuntime(mgr, workspace ? mgr.get(workspace.workspaceId) : firstRuntime(mgr))
 
       if (!rt) {
         await vscode.window.showInformationMessage("Open a workspace folder first.")
         return
       }
 
-      if (!rt || rt.state !== "ready") {
+      if (rt.state !== "ready") {
         await vscode.window.showErrorMessage(runtimeNotReadyMessage(rt))
         return
       }
 
       const session = await sessions.create(rt.workspaceId)
       await vscode.commands.executeCommand("opencode-ui.openSessionById", workspaceRef(rt), session.id)
+    }),
+    vscode.commands.registerCommand("opencode-ui.startWorkspaceServer", async (item?: WorkspaceItem) => {
+      const rt = item?.runtime
+
+      if (!rt) {
+        await vscode.window.showInformationMessage("Pick a workspace item to start its server.")
+        return
+      }
+
+      const next = await mgr.start(rt.workspaceId)
+      if (next?.state === "ready") {
+        await sessions.refresh(next.workspaceId, true)
+      } else {
+        await vscode.window.showErrorMessage(runtimeNotReadyMessage(next))
+      }
     }),
     vscode.commands.registerCommand("opencode-ui.restartWorkspaceServer", async (item?: WorkspaceItem) => {
       const rt = item?.runtime
@@ -99,14 +114,20 @@ export function commands(
         return
       }
 
-      await tabs.openSession(workspaceRef(item.runtime), item.session)
+      const rt = await readyRuntime(mgr, item.runtime)
+      if (!rt || rt.state !== "ready") {
+        await vscode.window.showErrorMessage(runtimeNotReadyMessage(rt))
+        return
+      }
+
+      await tabs.openSession(workspaceRef(rt), item.session)
     }),
     vscode.commands.registerCommand("opencode-ui.openSessionById", async (workspace?: WorkspaceRef, sessionID?: string) => {
       if (!workspace || !sessionID) {
         return
       }
 
-      const rt = mgr.get(workspace.workspaceId)
+      const rt = await readyRuntime(mgr, mgr.get(workspace.workspaceId))
 
       if (!rt || rt.state !== "ready" || !rt.sdk) {
         await vscode.window.showErrorMessage(runtimeNotReadyMessage(rt))
@@ -149,8 +170,15 @@ export function commands(
 }
 
 function firstRuntime(mgr: WorkspaceManager): WorkspaceRuntime | undefined {
-  const folder = vscode.workspace.workspaceFolders?.[0]
-  return folder ? mgr.get(folder.uri.toString()) : undefined
+  return mgr.list()[0]
+}
+
+async function readyRuntime(mgr: WorkspaceManager, rt: WorkspaceRuntime | undefined) {
+  if (rt?.state === "idle") {
+    return await mgr.start(rt.workspaceId)
+  }
+
+  return rt
 }
 
 function workspaceRef(runtime: { workspaceId: string; dir: string }): WorkspaceRef {

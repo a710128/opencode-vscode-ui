@@ -5,12 +5,15 @@ import type { WorkspaceRuntime } from "../core/server"
 
 export class WorkspaceItem extends vscode.TreeItem {
   constructor(readonly runtime: WorkspaceRuntime) {
-    super(runtime.name, vscode.TreeItemCollapsibleState.Expanded)
+    super(
+      runtime.name,
+      runtime.state === "idle" ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.Expanded,
+    )
     this.id = runtime.workspaceId
     this.description = desc(runtime)
-    this.tooltip = `${runtime.dir}\n${runtime.url}`
-    this.contextValue = "workspace"
-    this.iconPath = icon(runtime.state)
+    this.tooltip = runtime.url ? `${runtime.dir}\n${runtime.url}` : runtime.dir
+    this.contextValue = runtime.state === "idle" ? "workspace-idle" : "workspace"
+    this.iconPath = icon(runtime)
   }
 }
 
@@ -45,6 +48,10 @@ export class SessionItem extends vscode.TreeItem {
 }
 
 function desc(runtime: WorkspaceRuntime) {
+  if (runtime.state === "idle") {
+    return "idle"
+  }
+
   if (runtime.state === "ready") {
     return `ready :${runtime.port}`
   }
@@ -64,16 +71,20 @@ function desc(runtime: WorkspaceRuntime) {
   return "stopped"
 }
 
-function icon(state: WorkspaceRuntime["state"]) {
-  if (state === "ready") {
-    return new vscode.ThemeIcon("check")
+function icon(runtime: WorkspaceRuntime) {
+  if (runtime.state === "idle") {
+    return new vscode.ThemeIcon("circle-outline")
   }
 
-  if (state === "starting") {
+  if (runtime.state === "ready") {
+    return new vscode.ThemeIcon(runtime.parentId ? "repo-forked" : "check")
+  }
+
+  if (runtime.state === "starting") {
     return new vscode.ThemeIcon("sync")
   }
 
-  if (state === "error") {
+  if (runtime.state === "error") {
     return new vscode.ThemeIcon("error")
   }
 

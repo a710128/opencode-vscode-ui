@@ -40,8 +40,12 @@ export class SidebarProvider implements vscode.TreeDataProvider<vscode.TreeItem>
     if (item instanceof WorkspaceItem) {
       const rt = this.mgr.get(item.runtime.workspaceId) ?? item.runtime
 
+      if (rt.state === "idle") {
+        return [new StatusItem("Server not started", "click Start to start")]
+      }
+
       if (rt.state === "starting") {
-        return [new StatusItem(`Starting server on ${rt.url}`)]
+        return [new StatusItem(rt.url ? `Starting server on ${rt.url}` : "Starting server...")]
       }
 
       if (rt.state === "error") {

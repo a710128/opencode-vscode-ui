@@ -3,14 +3,15 @@ import * as net from "node:net"
 import { getHttpProxy, getOpencodeExecutablePath } from "./settings"
 import type { Client, SessionInfo, SessionStatus } from "./sdk"
 
-export type RuntimeState = "starting" | "ready" | "error" | "stopped" | "stopping"
+export type RuntimeState = "idle" | "starting" | "ready" | "error" | "stopped" | "stopping"
 
 export type WorkspaceRuntime = {
   workspaceId: string
   dir: string
   name: string
-  port: number
-  url: string
+  parentId?: string
+  port?: number
+  url?: string
   state: RuntimeState
   sessions: Map<string, SessionInfo>
   sessionStatuses: Map<string, SessionStatus>

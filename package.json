@@ -40,6 +40,7 @@
     "onCommand:opencode-ui.openSettings",
     "onCommand:opencode-ui.checkEnvironment",
     "onCommand:opencode-ui.refreshWorkspaceSessions",
+    "onCommand:opencode-ui.startWorkspaceServer",
     "onCommand:opencode-ui.restartWorkspaceServer",
     "onWebviewPanel:opencode-ui.session"
   ],
@@ -143,6 +144,12 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "opencode-ui.startWorkspaceServer",
+        "title": "OpenCode: Start Workspace Server",
+        "shortTitle": "Start",
+        "icon": "$(play)"
+      },
+      {
         "command": "opencode-ui.openSession",
         "title": "OpenCode: Open Session",
         "icon": "$(arrow-right)"
@@ -199,6 +206,36 @@
           "default": "",
           "description": "Optional opencode executable path used when launching opencode serve and checking opencode availability. Leave empty to resolve opencode from PATH. Requires editor restart to take effect.",
           "scope": "machine-overridable"
+        },
+        "opencode-ui.discoverSubmodules": {
+          "type": "boolean",
+          "default": true,
+          "description": "Discover initialized Git submodules under each open workspace folder and show them as separate OpenCode workspaces.",
+          "scope": "machine-overridable"
+        },
+        "opencode-ui.submoduleDepth": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 3,
+          "description": "Maximum nested Git submodule discovery depth. Set to 0 to disable submodule discovery.",
+          "scope": "machine-overridable"
+        },
+        "opencode-ui.serverStart": {
+          "type": "string",
+          "default": "lazy",
+          "enum": [
+            "eager",
+            "lazy",
+            "root-eager"
+          ],
+          "markdownEnumDescriptions": [
+            "Start all workspace servers during workspace sync.",
+            "Register workspaces but start servers only when used.",
+            "Start explicit workspace folder servers eagerly and discovered submodule servers lazily."
+          ],
+          "description": "Controls when opencode serve processes are started. This only affects startup; already running servers are not stopped when the setting changes.",
+          "scope": "machine-overridable"
         }
       }
     },
@@ -215,6 +252,16 @@
           "command": "opencode-ui.newSession",
           "when": "view == opencode-ui.sessions && viewItem == workspace",
           "group": "inline@1"
+        },
+        {
+          "command": "opencode-ui.newSession",
+          "when": "view == opencode-ui.sessions && viewItem == workspace-idle",
+          "group": "inline@1"
+        },
+        {
+          "command": "opencode-ui.startWorkspaceServer",
+          "when": "view == opencode-ui.sessions && viewItem == workspace-idle",
+          "group": "inline@2"
         },
         {
           "command": "opencode-ui.refreshWorkspaceSessions",

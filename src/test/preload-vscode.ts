@@ -15,9 +15,18 @@ class Disposable {
 }
 
 class EventEmitter<T> {
-  event = (_listener: (event: T) => void) => new Disposable()
+  private listeners: Array<(event: T) => void> = []
 
-  fire(_event: T) {}
+  event = (listener: (event: T) => void) => {
+    this.listeners.push(listener)
+    return new Disposable()
+  }
+
+  fire(event: T) {
+    for (const listener of this.listeners) {
+      listener(event)
+    }
+  }
 
   dispose() {}
 }
@@ -34,6 +43,10 @@ mock.module("vscode", () => ({
     showWarningMessage: async () => undefined,
     createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }),
     registerTreeDataProvider: () => new Disposable(),
+    createTreeView: () => ({
+      onDidExpandElement: () => new Disposable(),
+      dispose() {},
+    }),
     registerWebviewViewProvider: () => new Disposable(),
     registerWebviewPanelSerializer: () => new Disposable(),
     createWebviewPanel: () => ({
@@ -49,11 +62,19 @@ mock.module("vscode", () => ({
   },
   workspace: {
     workspaceFolders: [],
+    createFileSystemWatcher: () => ({
+      onDidCreate: () => new Disposable(),
+      onDidChange: () => new Disposable(),
+      onDidDelete: () => new Disposable(),
+      dispose() {},
+    }),
     onDidChangeWorkspaceFolders: () => new Disposable(),
+    onDidChangeConfiguration: () => new Disposable(),
     getConfiguration: () => ({
       get: <T>(_key: string, fallback: T) => fallback,
     }),
     fs: {
+      readFile: async () => new Uint8Array(),
       stat: async () => ({ type: 0 }),
     },
     openTextDocument: async () => ({}),
@@ -92,6 +113,7 @@ mock.module("vscode", () => ({
   TreeItem: class {},
   TreeItemCollapsibleState: {
     None: 0,
-    Expanded: 1,
+    Collapsed: 1,
+    Expanded: 2,
   },
 }))
