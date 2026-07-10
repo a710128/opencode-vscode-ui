@@ -1,5 +1,5 @@
 import type { AgentInfo, CommandInfo, FileDiff, LspStatus, McpResource, McpStatus, PermissionRequest, PromptSource, ProviderInfo, QuestionRequest, SessionEvent, SessionInfo, SessionMessage, SessionStatus, Todo } from "../core/sdk"
-import type { DisplaySettings } from "../core/settings"
+import type { ColorScheme, DisplaySettings } from "../core/settings"
 
 export const SESSION_PANEL_VIEW_TYPE = "opencode-ui.session"
 
@@ -79,6 +79,10 @@ export type ComposerPathResult = {
 }
 
 export type HostMessage =
+  | {
+      type: "colorScheme"
+      value: ColorScheme
+    }
   | {
       type: "bootstrap"
       payload: SessionBootstrap

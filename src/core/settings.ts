@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 
 export type DiffMode = "unified" | "split"
 export type ServerStartMode = "eager" | "lazy" | "root-eager"
+export type ColorScheme = "dark" | "vscode"
 
 export type DisplaySettings = {
   showInternals: boolean
@@ -19,6 +20,7 @@ export const DIFF_MODE_KEY = "diffMode"
 export const DISCOVER_SUBMODULES_KEY = "discoverSubmodules"
 export const SUBMODULE_DEPTH_KEY = "submoduleDepth"
 export const SERVER_START_KEY = "serverStart"
+export const COLOR_SCHEME_KEY = "colorScheme"
 
 export function getDisplaySettings(): DisplaySettings {
   const config = vscode.workspace.getConfiguration(SECTION)
@@ -66,10 +68,18 @@ export function getServerStartMode(): ServerStartMode {
   return value === "lazy" || value === "root-eager" ? value : "eager"
 }
 
+export function getColorScheme(): ColorScheme {
+  return vscode.workspace.getConfiguration(SECTION).get<string>(COLOR_SCHEME_KEY, "dark") === "vscode" ? "vscode" : "dark"
+}
+
 export function affectsDisplaySettings(event: vscode.ConfigurationChangeEvent) {
   return event.affectsConfiguration(`${SECTION}.${SHOW_INTERNALS_KEY}`)
     || event.affectsConfiguration(`${SECTION}.${SHOW_THINKING_KEY}`)
     || event.affectsConfiguration(`${SECTION}.${DIFF_MODE_KEY}`)
+}
+
+export function affectsColorScheme(event: vscode.ConfigurationChangeEvent) {
+  return event.affectsConfiguration(`${SECTION}.${COLOR_SCHEME_KEY}`)
 }
 
 export function affectsHttpProxySetting(event: vscode.ConfigurationChangeEvent) {

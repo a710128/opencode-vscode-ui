@@ -79,3 +79,56 @@
   --oc-font-size-lg: calc(var(--oc-font-size) + 1px);
   --oc-font-size-xl: calc(var(--oc-font-size) + 6px);
 }
+
+body[data-color-scheme="vscode"] {
+  --oc-bg: var(--vscode-editor-background);
+  --oc-surface-canvas: var(--vscode-editor-background);
+  --oc-surface-block: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  --oc-surface-inset: var(--vscode-input-background, var(--vscode-editorWidget-background));
+  --oc-surface-control: var(--vscode-input-background, var(--vscode-editorWidget-background));
+  --oc-border: var(--vscode-panel-border);
+  --oc-border-strong: var(--vscode-focusBorder);
+  --oc-accent: var(--vscode-button-background);
+  --oc-accent-text: var(--vscode-button-foreground);
+  --oc-hover-block: var(--vscode-list-hoverBackground);
+  --oc-hover-block-inset: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
+  --oc-rail-user: var(--vscode-textLink-foreground);
+  --oc-md-heading: var(--vscode-editor-foreground);
+  --oc-md-emph: var(--vscode-editor-foreground);
+  --oc-md-strong: var(--vscode-editor-foreground);
+  --oc-md-list: var(--vscode-editor-foreground);
+  --oc-md-list-enum: var(--vscode-editor-foreground);
+  --oc-diff-context: var(--vscode-descriptionForeground);
+  --oc-diff-lineNo: var(--vscode-editorLineNumber-foreground);
+  --oc-diff-add-fg: var(--vscode-gitDecoration-addedResourceForeground);
+  --oc-diff-add-bg: var(--vscode-diffEditor-insertedTextBackground);
+  --oc-diff-del-fg: var(--vscode-gitDecoration-deletedResourceForeground);
+  --oc-diff-del-bg: var(--vscode-diffEditor-removedTextBackground);
+  --oc-diff-syntax-comment: var(--vscode-descriptionForeground);
+  --oc-diff-syntax-keyword: var(--vscode-terminal-ansiMagenta);
+  --oc-diff-syntax-function: var(--vscode-terminal-ansiBlue);
+  --oc-diff-syntax-variable: var(--vscode-terminal-ansiYellow);
+  --oc-diff-syntax-string: var(--vscode-terminal-ansiGreen);
+  --oc-diff-syntax-number: var(--vscode-terminal-ansiYellow);
+  --oc-diff-syntax-type: var(--vscode-terminal-ansiCyan);
+  --oc-diff-syntax-operator: var(--vscode-terminal-ansiCyan);
+  --oc-diff-syntax-punctuation: var(--vscode-editor-foreground);
+  --oc-status-green: var(--vscode-testing-iconPassed);
+  --oc-status-orange: var(--vscode-editorWarning-foreground);
+  --oc-status-red: var(--vscode-errorForeground);
+  --oc-status-popover-bg: var(--vscode-editorWidget-background);
+  --oc-status-action-hover-light: var(--vscode-button-foreground);
+  --oc-warning-dock-mix-base: var(--vscode-editorWarning-background, var(--vscode-editorWidget-background));
+  --oc-warning-dock-mix-hover: var(--vscode-list-hoverBackground);
+  --oc-warning-dock-fg-strong: var(--vscode-editorWarning-foreground);
+}
+
+body[data-color-scheme="vscode"].vscode-light,
+body[data-color-scheme="vscode"].vscode-high-contrast-light {
+  color-scheme: light;
+}
+
+body[data-color-scheme="vscode"].vscode-dark,
+body[data-color-scheme="vscode"].vscode-high-contrast {
+  color-scheme: dark;
+}

@@ -195,6 +195,20 @@
           "description": "Choose how diffs render in session panels.",
           "scope": "machine-overridable"
         },
+        "opencode-ui.colorScheme": {
+          "type": "string",
+          "default": "dark",
+          "enum": [
+            "dark",
+            "vscode"
+          ],
+          "markdownEnumDescriptions": [
+            "Use the built-in dark OpenCode UI palette.",
+            "Use colors from the currently active VS Code theme."
+          ],
+          "description": "Choose the color scheme for OpenCode session tabs.",
+          "scope": "machine-overridable"
+        },
         "opencode-ui.httpProxy": {
           "type": "string",
           "default": "",
