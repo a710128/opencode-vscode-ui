@@ -6,6 +6,7 @@ import { TranscriptVisibilityContext } from "./contexts"
 
 export type TimelineBlock =
   | { kind: "user-message"; key: string; message: SessionMessage; queued: boolean }
+  | { kind: "message-actions"; key: string; message: SessionMessage }
   | { kind: "assistant-part"; key: string; part: MessagePart }
   | { kind: "assistant-meta"; key: string; messages: SessionMessage[] }
   | { kind: "revert"; key: string; count: number; files: Array<{ filename: string; additions: number; deletions: number }> }
@@ -20,6 +21,7 @@ type TimelineDerivationOptions = {
 export type TimelineDerivationCache = {
   assistantMetaBlocks: Map<string, Extract<TimelineBlock, { kind: "assistant-meta" }>>
   assistantPartBlocks: Map<string, Extract<TimelineBlock, { kind: "assistant-part" }>>
+  messageActionBlocks: Map<string, Extract<TimelineBlock, { kind: "message-actions" }>>
   revertBlocks: Map<string, Extract<TimelineBlock, { kind: "revert" }>>
   userBlocks: Map<string, Extract<TimelineBlock, { kind: "user-message" }>>
 }
@@ -28,6 +30,7 @@ export function createTimelineDerivationCache(): TimelineDerivationCache {
   return {
     assistantMetaBlocks: new Map(),
     assistantPartBlocks: new Map(),
+    messageActionBlocks: new Map(),
     revertBlocks: new Map(),
     userBlocks: new Map(),
   }
@@ -47,6 +50,11 @@ type TimelineProps = {
   EmptyState: ({ title, text }: { title: string; text: string }) => React.JSX.Element
   MarkdownBlock: ({ content, className }: { content: string; className?: string }) => React.JSX.Element
   PartView: ({ part, active, diffMode }: { part: MessagePart; active?: boolean; diffMode?: "unified" | "split" }) => React.JSX.Element
+  copiedMessageID?: string
+  forkingMessageID?: string
+  forkDisabled: boolean
+  onCopyMessage: (messageID: string) => void
+  onForkMessage: (messageID: string) => void
 }
 
 export const Timeline = React.memo(function Timeline({
@@ -63,6 +71,11 @@ export const Timeline = React.memo(function Timeline({
   EmptyState,
   MarkdownBlock,
   PartView,
+  copiedMessageID,
+  forkingMessageID,
+  forkDisabled,
+  onCopyMessage,
+  onForkMessage,
 }: TimelineProps) {
   const cacheRef = React.useRef<TimelineDerivationCache>(createTimelineDerivationCache())
 
@@ -96,6 +109,11 @@ export const Timeline = React.memo(function Timeline({
             CompactionDivider={CompactionDivider}
             MarkdownBlock={MarkdownBlock}
             PartView={PartView}
+            copiedMessageID={copiedMessageID}
+            forkingMessageID={forkingMessageID}
+            forkDisabled={forkDisabled}
+            onCopyMessage={onCopyMessage}
+            onForkMessage={onForkMessage}
             active={block.kind === "assistant-part" && block.part.type === "tool" && block.part.id === activeToolID}
             block={block}
             diffMode={diffMode}
@@ -111,6 +129,11 @@ type TimelineBlockViewProps = {
   CompactionDivider: () => React.JSX.Element
   MarkdownBlock: ({ content, className }: { content: string; className?: string }) => React.JSX.Element
   PartView: ({ part, active, diffMode }: { part: MessagePart; active?: boolean; diffMode?: "unified" | "split" }) => React.JSX.Element
+  copiedMessageID?: string
+  forkingMessageID?: string
+  forkDisabled: boolean
+  onCopyMessage: (messageID: string) => void
+  onForkMessage: (messageID: string) => void
   active: boolean
   block: TimelineBlock
   diffMode: "unified" | "split"
@@ -121,6 +144,11 @@ function TimelineBlockView({
   CompactionDivider,
   MarkdownBlock,
   PartView,
+  copiedMessageID,
+  forkingMessageID,
+  forkDisabled,
+  onCopyMessage,
+  onForkMessage,
   active,
   block,
   diffMode,
@@ -186,6 +214,19 @@ function TimelineBlockView({
     return <AssistantTurnMeta AgentBadge={AgentBadge} messages={block.messages} />
   }
 
+  if (block.kind === "message-actions") {
+    return (
+      <MessageActions
+        copied={copiedMessageID === block.message.info.id}
+        forkDisabled={forkDisabled}
+        forking={forkingMessageID === block.message.info.id}
+        messageID={block.message.info.id}
+        onCopy={onCopyMessage}
+        onFork={onForkMessage}
+      />
+    )
+  }
+
   if (block.kind === "revert") {
     return (
       <section className="oc-revertNotice">
@@ -217,6 +258,11 @@ function areTimelineBlockPropsEqual(prev: TimelineBlockViewProps, next: Timeline
     || prev.CompactionDivider !== next.CompactionDivider
     || prev.MarkdownBlock !== next.MarkdownBlock
     || prev.PartView !== next.PartView
+    || prev.copiedMessageID !== next.copiedMessageID
+    || prev.forkingMessageID !== next.forkingMessageID
+    || prev.forkDisabled !== next.forkDisabled
+    || prev.onCopyMessage !== next.onCopyMessage
+    || prev.onForkMessage !== next.onForkMessage
     || prev.active !== next.active
     || prev.diffMode !== next.diffMode) {
     return false
@@ -232,6 +278,10 @@ function sameTimelineBlock(prev: TimelineBlock, next: TimelineBlock) {
 
   if (prev.kind === "user-message" && next.kind === "user-message") {
     return prev.message === next.message && prev.queued === next.queued
+  }
+
+  if (prev.kind === "message-actions" && next.kind === "message-actions") {
+    return prev.message === next.message
   }
 
   if (prev.kind === "assistant-part" && next.kind === "assistant-part") {
@@ -316,9 +366,52 @@ function AssistantTurnMeta({ AgentBadge, messages }: { AgentBadge: ({ name }: { 
   )
 }
 
+function MessageActions({
+  copied,
+  forkDisabled,
+  forking,
+  messageID,
+  onCopy,
+  onFork,
+}: {
+  copied: boolean
+  forkDisabled: boolean
+  forking: boolean
+  messageID: string
+  onCopy: (messageID: string) => void
+  onFork: (messageID: string) => void
+}) {
+  return (
+    <div className="oc-messageActions" aria-label="Message actions">
+      <button
+        type="button"
+        className="oc-messageAction"
+        title={copied ? "Copied" : "Copy message"}
+        aria-label={copied ? "Message copied" : "Copy message"}
+        onClick={() => onCopy(messageID)}
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 2.5h7v9H5zM3.5 5H3v8.5h7.5V13" /></svg>
+        <span>{copied ? "Copied" : "Copy"}</span>
+      </button>
+      <button
+        type="button"
+        className="oc-messageAction"
+        title={forkDisabled ? "Fork is unavailable while the session is running" : "Fork from here"}
+        aria-label="Fork from here"
+        disabled={forkDisabled || forking}
+        onClick={() => onFork(messageID)}
+      >
+        {forking ? <span className="oc-messageActionSpinner" aria-hidden="true" /> : <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 2v7a3 3 0 0 0 3 3h3M5 2v2M11 10l2 2-2 2M11 4h2v3" /></svg>}
+        <span>{forking ? "Forking" : "Fork from here"}</span>
+      </button>
+    </div>
+  )
+}
+
 export function reconcileTimelineBlocks(cache: TimelineDerivationCache, messages: SessionMessage[], options: TimelineDerivationOptions) {
   const nextAssistantMetaBlocks = new Map<string, Extract<TimelineBlock, { kind: "assistant-meta" }>>()
   const nextAssistantPartBlocks = new Map<string, Extract<TimelineBlock, { kind: "assistant-part" }>>()
+  const nextMessageActionBlocks = new Map<string, Extract<TimelineBlock, { kind: "message-actions" }>>()
   const nextRevertBlocks = new Map<string, Extract<TimelineBlock, { kind: "revert" }>>()
   const nextUserBlocks = new Map<string, Extract<TimelineBlock, { kind: "user-message" }>>()
   const blocks: TimelineBlock[] = []
@@ -343,6 +436,10 @@ export function reconcileTimelineBlocks(cache: TimelineDerivationCache, messages
     if (message.info.role === "user") {
       flush()
       blocks.push(userBlock(cache.userBlocks, nextUserBlocks, message, pendingAssistantIndex >= 0 && index > pendingAssistantIndex))
+      const actions = messageActionBlock(cache.messageActionBlocks, nextMessageActionBlocks, message)
+      if (actions) {
+        blocks.push(actions)
+      }
       continue
     }
 
@@ -350,15 +447,45 @@ export function reconcileTimelineBlocks(cache: TimelineDerivationCache, messages
     for (const part of parts) {
       blocks.push(assistantPartBlock(cache.assistantPartBlocks, nextAssistantPartBlocks, part))
     }
+    const actions = messageActionBlock(cache.messageActionBlocks, nextMessageActionBlocks, message)
+    if (actions) {
+      blocks.push(actions)
+    }
     assistants.push(message)
   }
 
   flush()
   cache.assistantMetaBlocks = nextAssistantMetaBlocks
   cache.assistantPartBlocks = nextAssistantPartBlocks
+  cache.messageActionBlocks = nextMessageActionBlocks
   cache.revertBlocks = nextRevertBlocks
   cache.userBlocks = nextUserBlocks
   return blocks
+}
+
+function messageActionBlock(
+  cache: Map<string, Extract<TimelineBlock, { kind: "message-actions" }>>,
+  nextCache: Map<string, Extract<TimelineBlock, { kind: "message-actions" }>>,
+  message: SessionMessage,
+) {
+  if (!messageCopyable(message)) {
+    return undefined
+  }
+
+  const key = `actions:${message.info.id}`
+  const prev = cache.get(key)
+  if (prev && prev.message === message) {
+    nextCache.set(key, prev)
+    return prev
+  }
+
+  const next: Extract<TimelineBlock, { kind: "message-actions" }> = {
+    kind: "message-actions",
+    key,
+    message,
+  }
+  nextCache.set(key, next)
+  return next
 }
 
 function userBlock(
@@ -490,6 +617,11 @@ function lastPendingAssistantIndex(messages: SessionMessage[]) {
 
 function primaryUserText(message: SessionMessage) {
   return message.parts.find((part): part is TextPart => part.type === "text" && !part.synthetic && !part.ignored)
+}
+
+function messageCopyable(message: SessionMessage) {
+  return (message.info.role === "user" || message.info.role === "assistant")
+    && message.parts.some((part) => part.type === "text" && !part.synthetic && !part.ignored && !!part.text.trim())
 }
 
 function userHasSyntheticText(message: SessionMessage) {

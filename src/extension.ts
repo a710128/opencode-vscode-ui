@@ -29,7 +29,7 @@ export async function activate(ctx: vscode.ExtensionContext) {
     rejectInitialSync = reject
   })
   const waitInitialSync = () => initialSync
-  const panels = new SessionPanelManager(ctx.extensionUri, mgr, events, out, waitInitialSync)
+  const panels = new SessionPanelManager(ctx.extensionUri, mgr, events, sessions, out, waitInitialSync)
   const tabs = new TabManager(panels)
   const focused = new FocusedSessionStore(mgr, panels, events, out)
 

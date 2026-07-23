@@ -4,8 +4,9 @@ import type { HostMessage, SessionPanelRef, SessionSnapshot, WebviewMessage } fr
 import { affectsColorScheme, affectsDisplaySettings, getColorScheme } from "../../core/settings"
 import { EventHub } from "../../core/events"
 import type { SessionEvent } from "../../core/sdk"
+import type { SessionStore } from "../../core/session"
 import { WorkspaceManager } from "../../core/workspace"
-import { rejectQuestion, replyPermission, replyQuestion, runComposerAction, runShellCommand, runSlashCommand, submit, toggleMcp, type PanelActionState } from "./actions"
+import { copyMessage, forkSessionFromMessage, rejectQuestion, replyPermission, replyQuestion, runComposerAction, runShellCommand, runSlashCommand, submit, toggleMcp, type PanelActionState } from "./actions"
 import { openFile, resolveFileRefs, searchFiles } from "./files"
 import { needsRefresh, reduce } from "./reducer"
 import { buildSessionSnapshot, patch } from "./snapshot"
@@ -28,6 +29,7 @@ export class SessionPanelController implements vscode.Disposable {
     disposed: false,
     run: 0,
     pendingSubmitCount: 0,
+    pendingForkMessageIDs: new Set(),
   }
 
   constructor(
@@ -36,6 +38,7 @@ export class SessionPanelController implements vscode.Disposable {
     readonly key: string,
     readonly panel: vscode.WebviewPanel,
     private mgr: WorkspaceManager,
+    private sessions: SessionStore,
     private events: EventHub,
     private out: vscode.OutputChannel,
     private onActive: (ref: SessionPanelRef | undefined) => void,
@@ -86,6 +89,16 @@ export class SessionPanelController implements vscode.Disposable {
 
         if (message?.type === "newSession") {
           void vscode.commands.executeCommand("opencode-ui.newSessionAndOpen", this.ref)
+          return
+        }
+
+        if (message?.type === "copyMessage") {
+          void copyMessage(this.actionContext(), message.messageID)
+          return
+        }
+
+        if (message?.type === "forkSessionFromMessage") {
+          void forkSessionFromMessage(this.actionContext(), message.messageID)
           return
         }
 
@@ -383,8 +396,10 @@ export class SessionPanelController implements vscode.Disposable {
     return {
       ref: this.ref,
       mgr: this.mgr,
+      sessions: this.sessions,
       panel: this.panel,
       state: this.state,
+      messages: () => this.current?.messages ?? [],
       log: (message: string) => {
         this.log(message)
       },

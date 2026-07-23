@@ -7,6 +7,10 @@ import { bootstrapFromSnapshot, normalizeSnapshotPayload, type AppState, type Vs
 export function dispatchHostMessage(message: HostMessage, handlers: {
   fileRefStatus: Map<string, boolean>
   onFileSearchResults: (payload: { requestID: string; query: string; results: ComposerPathResult[] }) => void
+  onForkCompleted?: (messageID: string) => void
+  onForkFailed?: (payload: { messageID: string; error: string }) => void
+  onForkStarted?: (messageID: string) => void
+  onMessageCopied?: (messageID: string) => void
   onRestoreComposer: (payload: { parts: import("../../../bridge/types").ComposerPromptPart[] }) => void
   onShellCommandSucceeded: () => void
   setPendingMcpActions: React.Dispatch<React.SetStateAction<Record<string, boolean>>>
@@ -131,6 +135,26 @@ export function dispatchHostMessage(message: HostMessage, handlers: {
     return
   }
 
+  if (message?.type === "messageCopied") {
+    handlers.onMessageCopied?.(message.messageID)
+    return
+  }
+
+  if (message?.type === "forkStarted") {
+    handlers.onForkStarted?.(message.messageID)
+    return
+  }
+
+  if (message?.type === "forkCompleted") {
+    handlers.onForkCompleted?.(message.sourceMessageID)
+    return
+  }
+
+  if (message?.type === "forkFailed") {
+    handlers.onForkFailed?.(message)
+    return
+  }
+
   if (message?.type === "mcpActionFinished") {
     handlers.setPendingMcpActions((current) => {
       if (!current[message.name]) {
@@ -157,6 +181,10 @@ function asSessionSnapshot(state: AppState): SessionSnapshot {
 export function useHostMessages({
   fileRefStatus,
   onFileSearchResults,
+  onForkCompleted,
+  onForkFailed,
+  onForkStarted,
+  onMessageCopied,
   onRestoreComposer,
   onShellCommandSucceeded,
   setPendingMcpActions,
@@ -165,6 +193,10 @@ export function useHostMessages({
 }: {
   fileRefStatus: Map<string, boolean>
   onFileSearchResults: (payload: { requestID: string; query: string; results: ComposerPathResult[] }) => void
+  onForkCompleted?: (messageID: string) => void
+  onForkFailed?: (payload: { messageID: string; error: string }) => void
+  onForkStarted?: (messageID: string) => void
+  onMessageCopied?: (messageID: string) => void
   onRestoreComposer: (payload: { parts: import("../../../bridge/types").ComposerPromptPart[] }) => void
   onShellCommandSucceeded: () => void
   setPendingMcpActions: React.Dispatch<React.SetStateAction<Record<string, boolean>>>
@@ -174,6 +206,10 @@ export function useHostMessages({
   const fileSearchHandlerRef = React.useRef(onFileSearchResults)
   const restoreComposerHandlerRef = React.useRef(onRestoreComposer)
   const shellSucceededHandlerRef = React.useRef(onShellCommandSucceeded)
+  const forkCompletedHandlerRef = React.useRef(onForkCompleted ?? (() => {}))
+  const forkFailedHandlerRef = React.useRef(onForkFailed ?? (() => {}))
+  const forkStartedHandlerRef = React.useRef(onForkStarted ?? (() => {}))
+  const messageCopiedHandlerRef = React.useRef(onMessageCopied ?? (() => {}))
 
   React.useEffect(() => {
     fileSearchHandlerRef.current = onFileSearchResults
@@ -188,12 +224,23 @@ export function useHostMessages({
   }, [onShellCommandSucceeded])
 
   React.useEffect(() => {
+    forkCompletedHandlerRef.current = onForkCompleted ?? (() => {})
+    forkFailedHandlerRef.current = onForkFailed ?? (() => {})
+    forkStartedHandlerRef.current = onForkStarted ?? (() => {})
+    messageCopiedHandlerRef.current = onMessageCopied ?? (() => {})
+  }, [onForkCompleted, onForkFailed, onForkStarted, onMessageCopied])
+
+  React.useEffect(() => {
     const handler = (event: MessageEvent<HostMessage>) => {
       dispatchHostMessage(event.data, {
         fileRefStatus,
         onFileSearchResults: (payload) => fileSearchHandlerRef.current(payload),
         onRestoreComposer: (payload) => restoreComposerHandlerRef.current(payload),
         onShellCommandSucceeded: () => shellSucceededHandlerRef.current(),
+        onForkCompleted: (messageID) => forkCompletedHandlerRef.current(messageID),
+        onForkFailed: (payload) => forkFailedHandlerRef.current(payload),
+        onForkStarted: (messageID) => forkStartedHandlerRef.current(messageID),
+        onMessageCopied: (messageID) => messageCopiedHandlerRef.current(messageID),
         setPendingMcpActions,
         setState,
       })

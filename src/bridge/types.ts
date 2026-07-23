@@ -133,6 +133,24 @@ export type HostMessage =
   | {
       type: "shellCommandSucceeded"
     }
+  | {
+      type: "messageCopied"
+      messageID: string
+    }
+  | {
+      type: "forkStarted"
+      messageID: string
+    }
+  | {
+      type: "forkCompleted"
+      sourceMessageID: string
+      newSessionID: string
+    }
+  | {
+      type: "forkFailed"
+      messageID: string
+      error: string
+    }
 
 export type ComposerPromptPart =
   | {
@@ -251,4 +269,12 @@ export type WebviewMessage =
   | {
       type: "openDocs"
       target: "providers"
+    }
+  | {
+      type: "copyMessage"
+      messageID: string
+    }
+  | {
+      type: "forkSessionFromMessage"
+      messageID: string
     }

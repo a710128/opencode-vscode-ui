@@ -482,6 +482,12 @@ export type Client = {
       parentID?: string
       title?: string
     }): Promise<{ data?: SessionInfo }>
+    fork(input: {
+      sessionID: string
+      messageID: string
+      directory?: string
+      workspace?: string
+    }): Promise<{ data?: SessionInfo }>
     delete(input: {
       sessionID: string
       directory?: string

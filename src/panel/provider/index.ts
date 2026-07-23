@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import { SESSION_PANEL_VIEW_TYPE, type SessionPanelRef } from "../../bridge/types"
 import { EventHub } from "../../core/events"
+import type { SessionStore } from "../../core/session"
 import { WorkspaceManager } from "../../core/workspace"
 import { sessionPanelHtml } from "../html"
 import { SessionPanelController } from "./controller"
@@ -17,6 +18,7 @@ export class SessionPanelManager implements vscode.Disposable {
     private extensionUri: vscode.Uri,
     private mgr: WorkspaceManager,
     private events: EventHub,
+    private sessions: SessionStore,
     private out: vscode.OutputChannel,
     private waitInitialSync: () => Promise<void> = () => Promise.resolve(),
   ) {}
@@ -104,6 +106,7 @@ export class SessionPanelManager implements vscode.Disposable {
       key,
       panel,
       this.mgr,
+      this.sessions,
       this.events,
       this.out,
       (next) => {

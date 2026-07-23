@@ -78,13 +78,14 @@ describe("timeline block reconciliation", () => {
 
     assert.equal(second.length, first.length)
     assert.strictEqual(second[0], first[0], "user block should be reused")
-    assert.notStrictEqual(second[1], first[1], "changed assistant text block should be rebuilt")
-    assert.strictEqual(second[2], first[2], "unchanged assistant tool block should be reused")
-    assert.notStrictEqual(second[3], first[3], "assistant meta block should update for changed assistant message group")
-    assert.equal(second[1]?.kind, "assistant-part")
-    assert.equal(second[1]?.kind === "assistant-part" ? second[1].part.type : undefined, "text")
-    assert.equal(second[1]?.kind === "assistant-part" && second[1].part.type === "text" ? second[1].part.text : undefined, "before and after")
-    assert.equal(second[3]?.kind === "assistant-meta" ? second[3].messages[0] : undefined, nextAssistant)
+    assert.notStrictEqual(second[2], first[2], "changed assistant text block should be rebuilt")
+    assert.strictEqual(second[3], first[3], "unchanged assistant tool block should be reused")
+    assert.notStrictEqual(second[4], first[4], "assistant action block should update for the changed message")
+    assert.notStrictEqual(second[5], first[5], "assistant meta block should update for changed assistant message group")
+    assert.equal(second[2]?.kind, "assistant-part")
+    assert.equal(second[2]?.kind === "assistant-part" ? second[2].part.type : undefined, "text")
+    assert.equal(second[2]?.kind === "assistant-part" && second[2].part.type === "text" ? second[2].part.text : undefined, "before and after")
+    assert.equal(second[5]?.kind === "assistant-meta" ? second[5].messages[0] : undefined, nextAssistant)
   })
 
   test("reuses all block objects when inputs are identical", () => {
@@ -115,11 +116,21 @@ describe("timeline block reconciliation", () => {
 
     assert.equal(second.length, first.length + 1)
     assert.strictEqual(second[0], first[0], "user block should be reused")
-    assert.strictEqual(second[1], first[1], "existing assistant text block should be reused")
-    assert.notStrictEqual(second[2], first[2], "assistant meta block should rebuild when the assistant message group changes")
-    assert.equal(second[2]?.kind, "assistant-part")
-    assert.equal(second[2]?.kind === "assistant-part" ? second[2].part : undefined, appendedTool)
-    assert.equal(second[3]?.kind === "assistant-meta" ? second[3].messages[0] : undefined, nextAssistant)
+    assert.strictEqual(second[2], first[2], "existing assistant text block should be reused")
+    assert.equal(second[3]?.kind, "assistant-part")
+    assert.equal(second[3]?.kind === "assistant-part" ? second[3].part : undefined, appendedTool)
+    assert.notStrictEqual(second[4], first[3], "assistant action block should rebuild when the message changes")
+    assert.equal(second[5]?.kind === "assistant-meta" ? second[5].messages[0] : undefined, nextAssistant)
+  })
+
+  test("adds actions only for ordinary messages with visible text", () => {
+    const user = sessionMessage(messageInfo("m1", "user"), [textPart("p1", "m1", "hello")])
+    const toolOnlyAssistant = sessionMessage(messageInfo("m2", "assistant"), [toolPart("p2", "m2", "bash")])
+
+    const blocks = reconcileTimelineBlocks(createTimelineDerivationCache(), [user, toolOnlyAssistant], defaultOptions)
+
+    assert.equal(blocks.some((block) => block.kind === "message-actions" && block.message.info.id === "m1"), true)
+    assert.equal(blocks.some((block) => block.kind === "message-actions" && block.message.info.id === "m2"), false)
   })
 })
 
