@@ -18,6 +18,7 @@ export class SessionPanelManager implements vscode.Disposable {
     private mgr: WorkspaceManager,
     private events: EventHub,
     private out: vscode.OutputChannel,
+    private waitInitialSync: () => Promise<void> = () => Promise.resolve(),
   ) {}
 
   async open(ref: SessionPanelRef) {
@@ -41,6 +42,8 @@ export class SessionPanelManager implements vscode.Disposable {
   }
 
   async restore(panel: vscode.WebviewPanel, state: unknown) {
+    await this.waitInitialSync()
+
     const ref = reviveState(state)
 
     if (!ref) {
@@ -57,6 +60,12 @@ export class SessionPanelManager implements vscode.Disposable {
       panel.iconPath = panelIconPath(this.extensionUri)
       this.out.appendLine(`[panel] skipped restore because workspace is unavailable: ${ref.workspaceId}`)
       return
+    }
+
+    const rt = this.mgr.get(ref.workspaceId)
+    if (rt?.state === "idle") {
+      await this.mgr.start(rt.workspaceId)
+      await this.events.sync()
     }
 
     const controller = this.attach(ref, panel)

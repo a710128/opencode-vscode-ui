@@ -66,6 +66,40 @@ describe("panel restore state", () => {
     assert.equal(canRestoreRef(ref, folders), true)
   })
 
+  test("canRestoreRef accepts directories inside an open workspace folder", () => {
+    const ref = {
+      workspaceId: "vscode-remote://ssh-remote+box/workspace/libs/foo",
+      dir: "/workspace/libs/foo",
+      sessionId: "session-1",
+    }
+
+    const folders = [{
+      uri: {
+        toString: () => "vscode-remote://ssh-remote+box/workspace",
+        fsPath: "/workspace",
+      },
+    }]
+
+    assert.equal(canRestoreRef(ref, folders), true)
+  })
+
+  test("canRestoreRef handles Windows-style containment", () => {
+    const ref = {
+      workspaceId: "c:\\workspace\\libs\\foo",
+      dir: "c:\\workspace\\libs\\foo",
+      sessionId: "session-1",
+    }
+
+    const folders = [{
+      uri: {
+        toString: () => "c:\\workspace",
+        fsPath: "C:\\workspace",
+      },
+    }]
+
+    assert.equal(canRestoreRef(ref, folders), true)
+  })
+
   test("canRestoreRef returns false when workspace is unavailable", () => {
     const ref = {
       workspaceId: "vscode-remote://ssh-remote+box/workspace",
@@ -78,6 +112,16 @@ describe("panel restore state", () => {
       uri: {
         toString: () => "vscode-remote://ssh-remote+box/other",
         fsPath: "/other",
+      },
+    }]), false)
+    assert.equal(canRestoreRef({
+      workspaceId: "vscode-remote://ssh-remote+box/workspace-other",
+      dir: "/workspace-other",
+      sessionId: "session-2",
+    }, [{
+      uri: {
+        toString: () => "vscode-remote://ssh-remote+box/workspace",
+        fsPath: "/workspace",
       },
     }]), false)
   })

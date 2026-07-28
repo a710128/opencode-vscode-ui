@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import { postToWebview } from "../../bridge/host"
 import type { HostMessage, SessionPanelRef, SessionSnapshot, WebviewMessage } from "../../bridge/types"
-import { affectsDisplaySettings } from "../../core/settings"
+import { affectsColorScheme, affectsDisplaySettings, getColorScheme } from "../../core/settings"
 import { EventHub } from "../../core/events"
 import type { SessionEvent } from "../../core/sdk"
 import { WorkspaceManager } from "../../core/workspace"
@@ -147,6 +147,10 @@ export class SessionPanelController implements vscode.Disposable {
         void this.push(true, "workspace:change")
       }),
       vscode.workspace.onDidChangeConfiguration((event) => {
+        if (affectsColorScheme(event)) {
+          void postToWebview(this.panel.webview, { type: "colorScheme", value: getColorScheme() })
+        }
+
         if (!affectsDisplaySettings(event)) {
           return
         }

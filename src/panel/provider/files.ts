@@ -4,6 +4,7 @@ import type { ComposerPathResult, WorkspaceRef } from "../../bridge/types"
 import { WorkspaceManager } from "../../core/workspace"
 import { postToWebview } from "../../bridge/host"
 import { trimDirectorySuffix } from "./file-search"
+import { containsPath } from "./restore-state"
 
 export async function openFile(workspace: WorkspaceRef, filePath: string, line?: number) {
   const target = await resolveFileUri(workspace, filePath)
@@ -103,7 +104,7 @@ export function toFileUri(filePath: string, workspace: WorkspaceRef) {
   }
 
   if (folder) {
-    return vscode.Uri.joinPath(folder.uri, ...relativeSegments(filePath))
+    return absoluteUri(path.join(workspace.dir, filePath), folder)
   }
 
   return vscode.Uri.file(path.join(workspace.dir, filePath))
@@ -118,7 +119,15 @@ function mapSearchResults(items: string[] | undefined): ComposerPathResult[] {
 }
 
 function workspaceFolder(workspace: WorkspaceRef) {
-  return vscode.workspace.workspaceFolders?.find((folder) => folder.uri.toString() === workspace.workspaceId || folder.uri.fsPath === workspace.dir)
+  const folders = vscode.workspace.workspaceFolders ?? []
+  const exact = folders.find((folder) => folder.uri.toString() === workspace.workspaceId || folder.uri.fsPath === workspace.dir)
+  if (exact) {
+    return exact
+  }
+
+  return folders
+    .filter((folder) => containsPath(folder.uri.fsPath, workspace.dir))
+    .sort((a, b) => b.uri.fsPath.length - a.uri.fsPath.length)[0]
 }
 
 function absoluteUri(filePath: string, folder?: vscode.WorkspaceFolder) {
@@ -131,10 +140,6 @@ function absoluteUri(filePath: string, folder?: vscode.WorkspaceFolder) {
   return folder.uri.with({
     path: slashPath(normalized),
   })
-}
-
-function relativeSegments(filePath: string) {
-  return filePath.split(/[\\/]+/).filter(Boolean)
 }
 
 function slashPath(filePath: string) {

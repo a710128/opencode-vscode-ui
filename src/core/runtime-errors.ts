@@ -35,6 +35,10 @@ export function runtimeNotReadyMessage(rt?: WorkspaceRuntime) {
     return missingOpencodeMessage(rt)
   }
 
+  if (rt.state === "idle") {
+    return "Workspace server has not been started yet."
+  }
+
   if (rt.err) {
     return `Workspace server is not ready: ${rt.err}`
   }

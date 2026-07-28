@@ -12,6 +12,11 @@ export function dispatchHostMessage(message: HostMessage, handlers: {
   setPendingMcpActions: React.Dispatch<React.SetStateAction<Record<string, boolean>>>
   setState: React.Dispatch<React.SetStateAction<AppState>>
 }) {
+  if (message?.type === "colorScheme") {
+    document.body.dataset.colorScheme = message.value
+    return
+  }
+
   if (message?.type === "bootstrap") {
     handlers.setState((current) => ({ ...current, bootstrap: message.payload, error: "" }))
     return

@@ -1,11 +1,13 @@
 import * as vscode from "vscode"
 import type { SessionPanelRef } from "../bridge/types"
+import { getColorScheme } from "../core/settings"
 
 export function sessionPanelHtml(webview: vscode.Webview, extensionUri: vscode.Uri, ref?: SessionPanelRef) {
   const nonce = nonceText()
   const initialState = JSON.stringify(ref ?? null)
   const scriptUri = assetUri(webview, extensionUri, "panel-webview.js")
   const styleUri = assetUri(webview, extensionUri, "panel-webview.css")
+  const colorScheme = getColorScheme()
 
   return /* html */ `<!DOCTYPE html>
 <html lang="en">
@@ -16,7 +18,7 @@ export function sessionPanelHtml(webview: vscode.Webview, extensionUri: vscode.U
     <title>OpenCode Session</title>
     <link rel="stylesheet" href="${styleUri}" />
   </head>
-  <body>
+  <body data-color-scheme="${colorScheme}">
     <div id="root"></div>
     <script nonce="${nonce}">
       window.__OPENCODE_INITIAL_STATE__ = ${initialState}

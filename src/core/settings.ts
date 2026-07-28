@@ -1,6 +1,8 @@
 import * as vscode from "vscode"
 
 export type DiffMode = "unified" | "split"
+export type ServerStartMode = "eager" | "lazy" | "root-eager"
+export type ColorScheme = "dark" | "vscode"
 
 export type DisplaySettings = {
   showInternals: boolean
@@ -15,6 +17,10 @@ export const OPENCODE_EXECUTABLE_PATH_KEY = "executablePath"
 export const SHOW_INTERNALS_KEY = "showInternals"
 export const SHOW_THINKING_KEY = "showThinking"
 export const DIFF_MODE_KEY = "diffMode"
+export const DISCOVER_SUBMODULES_KEY = "discoverSubmodules"
+export const SUBMODULE_DEPTH_KEY = "submoduleDepth"
+export const SERVER_START_KEY = "serverStart"
+export const COLOR_SCHEME_KEY = "colorScheme"
 
 export function getDisplaySettings(): DisplaySettings {
   const config = vscode.workspace.getConfiguration(SECTION)
@@ -44,10 +50,36 @@ export function getOpencodeExecutablePath() {
   return vscode.workspace.getConfiguration(SECTION).get<string>(OPENCODE_EXECUTABLE_PATH_KEY, "").trim() || "opencode"
 }
 
+export function getDiscoverSubmodules() {
+  return vscode.workspace.getConfiguration(SECTION).get<boolean>(DISCOVER_SUBMODULES_KEY, true)
+}
+
+export function getSubmoduleDepth() {
+  const value = vscode.workspace.getConfiguration(SECTION).get<number>(SUBMODULE_DEPTH_KEY, 1)
+  if (!Number.isFinite(value)) {
+    return 1
+  }
+
+  return Math.max(0, Math.min(3, Math.trunc(value)))
+}
+
+export function getServerStartMode(): ServerStartMode {
+  const value = vscode.workspace.getConfiguration(SECTION).get<string>(SERVER_START_KEY, "root-eager")
+  return value === "lazy" || value === "eager" ? value : "root-eager"
+}
+
+export function getColorScheme(): ColorScheme {
+  return vscode.workspace.getConfiguration(SECTION).get<string>(COLOR_SCHEME_KEY, "dark") === "vscode" ? "vscode" : "dark"
+}
+
 export function affectsDisplaySettings(event: vscode.ConfigurationChangeEvent) {
   return event.affectsConfiguration(`${SECTION}.${SHOW_INTERNALS_KEY}`)
     || event.affectsConfiguration(`${SECTION}.${SHOW_THINKING_KEY}`)
     || event.affectsConfiguration(`${SECTION}.${DIFF_MODE_KEY}`)
+}
+
+export function affectsColorScheme(event: vscode.ConfigurationChangeEvent) {
+  return event.affectsConfiguration(`${SECTION}.${COLOR_SCHEME_KEY}`)
 }
 
 export function affectsHttpProxySetting(event: vscode.ConfigurationChangeEvent) {
@@ -57,6 +89,12 @@ export function affectsHttpProxySetting(event: vscode.ConfigurationChangeEvent) 
 
 export function affectsOpencodeExecutablePathSetting(event: vscode.ConfigurationChangeEvent) {
   return event.affectsConfiguration(`${SECTION}.${OPENCODE_EXECUTABLE_PATH_KEY}`)
+}
+
+export function affectsWorkspaceTargetsSetting(event: vscode.ConfigurationChangeEvent) {
+  return event.affectsConfiguration(`${SECTION}.${DISCOVER_SUBMODULES_KEY}`)
+    || event.affectsConfiguration(`${SECTION}.${SUBMODULE_DEPTH_KEY}`)
+    || event.affectsConfiguration(`${SECTION}.${SERVER_START_KEY}`)
 }
 
 export function openSettingsQuery() {
