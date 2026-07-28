@@ -140,9 +140,9 @@ In `activate()`, the `SessionPanelSerializer` is registered before `mgr.sync()` 
 
 - New runtime state `"idle"`: the workspace is **registered** (visible in the tree) but no server process exists yet. Extend the `RuntimeState` union in `src/core/server.ts`.
 - New setting `opencode-ui.serverStart` (string enum, `scope: "machine-overridable"`):
-  - `"eager"` — current behavior, start everything on sync. **Default**, to avoid changing behavior for existing users.
+  - `"eager"` — current behavior, start everything on sync.
   - `"lazy"` — register all workspaces as `idle`; start on demand.
-  - `"root-eager"` — start workspace-folder roots eagerly, submodules lazily. Likely the best default for submodule-heavy repos; recommend it in the setting description.
+  - `"root-eager"` — start workspace-folder roots eagerly, submodules lazily. **Default.** Explicit workspace folders keep today's eager behavior (no regression for existing single-root/multi-root users), while newly discovered submodule workspaces start lazily.
 - `WorkspaceManager.sync()` splits into two phases: **register** (create/refresh an `idle` runtime entry for every target; remove gone ones) and **start** (call `ensureNow` only for targets the policy says to start eagerly). Add `startPolicy(target): boolean` derived from the setting + `target.parentId`.
 - Add a public `start(id: string)` on `WorkspaceManager` (thin wrapper over `ensure(this.targets.get(id))`) — the on-demand entry point.
 
@@ -199,7 +199,7 @@ Follow the existing bun-test setup (`src/test/preload-vscode.ts` mock; may need 
 1. Opening a repo with initialized submodules shows each submodule as a top-level entry in the Sessions tree, named `<root>/<path>`, alongside the root — with no manual configuration.
 2. `opencode-ui.refresh`, window reload, and `.gitmodules` edits all keep the submodule list correct.
 3. Sessions can be created/opened/deleted in a submodule workspace exactly as in a root workspace, including panel restore after reload (also in Remote-SSH).
-4. With `serverStart: "lazy"` (or `"root-eager"`), no `opencode serve` process is spawned for a workspace until the user starts it (command/new session/open session/expand); with `"eager"` behavior is unchanged from today.
+4. With `serverStart: "lazy"` (or `"root-eager"` for a submodule workspace), no `opencode serve` process is spawned for a workspace until the user starts it (command/new session/open session/expand); with `"eager"` behavior is unchanged from today. Under the default `"root-eager"`, explicit workspace-folder roots still start eagerly, matching today's behavior.
 5. Idle workspaces render distinctly in the tree and never trigger session polling or SSE subscriptions.
 6. `discoverSubmodules: false` restores exactly today's behavior.
 7. Existing tests pass; new logic covered per §6.

@@ -237,7 +237,7 @@
         },
         "opencode-ui.serverStart": {
           "type": "string",
-          "default": "lazy",
+          "default": "root-eager",
           "enum": [
             "eager",
             "lazy",

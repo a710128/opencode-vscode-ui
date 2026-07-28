@@ -64,8 +64,8 @@ export function getSubmoduleDepth() {
 }
 
 export function getServerStartMode(): ServerStartMode {
-  const value = vscode.workspace.getConfiguration(SECTION).get<string>(SERVER_START_KEY, "eager")
-  return value === "lazy" || value === "root-eager" ? value : "eager"
+  const value = vscode.workspace.getConfiguration(SECTION).get<string>(SERVER_START_KEY, "root-eager")
+  return value === "lazy" || value === "eager" ? value : "root-eager"
 }
 
 export function getColorScheme(): ColorScheme {
