@@ -313,7 +313,7 @@ describe("provider message actions", () => {
     assert.equal(value, "first\nsecond")
   })
 
-  test("fork sends the selected message to OpenCode, refreshes sessions, and reports success", async () => {
+  test("fork uses the next message as the cut-off so the selected message is retained", async () => {
     let payload: unknown
     const { ctx, posted, refreshes } = createContext({
       fork: async (input) => {
@@ -322,13 +322,16 @@ describe("provider message actions", () => {
       },
     })
     const forkContext = ctx as unknown as { messages: () => SessionMessage[] }
-    forkContext.messages = () => [message("message-1", "fork here")]
+    forkContext.messages = () => [
+      message("message-1", "keep this"),
+      message("message-2", "cut off here"),
+    ]
 
     await forkSessionFromMessage(ctx, "message-1")
 
     assert.deepEqual(payload, {
       sessionID: "session-1",
-      messageID: "message-1",
+      messageID: "message-2",
       directory: "/workspace",
     })
     assert.deepEqual(refreshes, [{ workspaceID: "file:///workspace", quiet: true }])
@@ -336,6 +339,25 @@ describe("provider message actions", () => {
       { type: "forkStarted", messageID: "message-1" },
       { type: "forkCompleted", sourceMessageID: "message-1", newSessionID: "fork-1" },
     ])
+  })
+
+  test("fork omits the cut-off message when the selected message is last", async () => {
+    let payload: unknown
+    const { ctx } = createContext({
+      fork: async (input) => {
+        payload = input
+        return { data: { id: "fork-1" } }
+      },
+    })
+    const forkContext = ctx as unknown as { messages: () => SessionMessage[] }
+    forkContext.messages = () => [message("message-1", "keep this")]
+
+    await forkSessionFromMessage(ctx, "message-1")
+
+    assert.deepEqual(payload, {
+      sessionID: "session-1",
+      directory: "/workspace",
+    })
   })
 
   test("fork maps a missing endpoint to an actionable compatibility error", async () => {

@@ -484,7 +484,7 @@ export type Client = {
     }): Promise<{ data?: SessionInfo }>
     fork(input: {
       sessionID: string
-      messageID: string
+      messageID?: string
       directory?: string
       workspace?: string
     }): Promise<{ data?: SessionInfo }>

@@ -85,10 +85,11 @@ export async function forkSessionFromMessage(ctx: ActionContext, messageID: stri
       throw new Error("Wait for the current response to finish before creating a fork.")
     }
 
+    const nextMessageID = nextMessageIDAfter(ctx, messageID)
     const result = await rt.sdk.session.fork({
       sessionID: ctx.ref.sessionId,
-      messageID,
       directory: rt.dir,
+      ...(nextMessageID ? { messageID: nextMessageID } : {}),
     })
     const session = result.data
     if (!session?.id) {
@@ -606,6 +607,20 @@ function sourceMessage(ctx: ActionContext, messageID: string) {
     && message.info.sessionID === ctx.ref.sessionId
     && isOrdinaryMessage(message)
   ))
+}
+
+function nextMessageIDAfter(ctx: ActionContext, messageID: string) {
+  const messages = ctx.messages()
+  const sourceIndex = messages.findIndex((message) => (
+    message.info.id === messageID
+    && message.info.sessionID === ctx.ref.sessionId
+    && isOrdinaryMessage(message)
+  ))
+
+  return messages
+    .slice(sourceIndex + 1)
+    .find((message) => message.info.sessionID === ctx.ref.sessionId && isOrdinaryMessage(message))
+    ?.info.id
 }
 
 function isOrdinaryMessage(message: SessionMessage) {

@@ -89,3 +89,9 @@ If you use Remote SSH, **install `opencode` on the remote host** so the extensio
 ## Feedback 💬
 
 Have an idea or hit a bug? Open an issue at <https://github.com/a710128/opencode-vscode-ui/issues>.
+
+
+## Build vsix
+
+1. `bunx @vscode/vsce package --no-dependencies`
+2. Устанавить через Extensions → ... → Install from VSIX
