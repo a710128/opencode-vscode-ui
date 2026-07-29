@@ -4,7 +4,8 @@ import { URL } from "node:url"
 import { imageMimeFromFilename, supportedImageMime } from "../../bridge/image-attachments"
 import { postToWebview } from "../../bridge/host"
 import type { ComposerPromptPart, SessionPanelRef } from "../../bridge/types"
-import type { MessageInfo, MessagePart, PermissionReply, PromptPartInput } from "../../core/sdk"
+import type { MessageInfo, MessagePart, PermissionReply, PromptPartInput, SessionMessage } from "../../core/sdk"
+import type { SessionStore } from "../../core/session"
 import { WorkspaceManager } from "../../core/workspace"
 import { text, textError, wait } from "./utils"
 import { friendlyShellSubmitError } from "./shell-errors"
@@ -14,16 +15,114 @@ export type PanelActionState = {
   disposed: boolean
   run: number
   pendingSubmitCount: number
+  pendingForkMessageIDs: Set<string>
 }
 
 type ActionContext = {
   ref: SessionPanelRef
   mgr: WorkspaceManager
+  sessions: SessionStore
   panel: vscode.WebviewPanel
   state: PanelActionState
+  messages: () => SessionMessage[]
   log: (message: string) => void
   push: (force?: boolean) => Promise<void>
   syncSubmitting: () => Promise<void>
+}
+
+export function copyText(message: SessionMessage) {
+  if (!isOrdinaryMessage(message)) {
+    return ""
+  }
+
+  return message.parts
+    .flatMap((part) => part.type === "text" && !part.synthetic && !part.ignored && part.text.trim() ? [part.text] : [])
+    .join("\n")
+}
+
+export async function copyMessage(ctx: ActionContext, messageID: string) {
+  const message = sourceMessage(ctx, messageID)
+  const value = message ? copyText(message) : ""
+
+  if (!value) {
+    await fail(ctx.panel.webview, "This message has no text to copy.")
+    return
+  }
+
+  try {
+    await vscode.env.clipboard.writeText(value)
+    await postToWebview(ctx.panel.webview, { type: "messageCopied", messageID })
+  } catch (err) {
+    const message = textError(err)
+    ctx.log(`copy message failed: ${message}`)
+    await fail(ctx.panel.webview, "Failed to copy this message.")
+  }
+}
+
+export async function forkSessionFromMessage(ctx: ActionContext, messageID: string) {
+  if (ctx.state.disposed || ctx.state.pendingForkMessageIDs.has(messageID)) {
+    return
+  }
+
+  const message = sourceMessage(ctx, messageID)
+  if (!message || !copyText(message)) {
+    await forkFailed(ctx, messageID, "This message cannot be used as a fork point.")
+    return
+  }
+
+  const rt = ctx.mgr.get(ctx.ref.workspaceId)
+  if (!rt || rt.state !== "ready" || !rt.sdk) {
+    await forkFailed(ctx, messageID, "Workspace server is not ready.")
+    return
+  }
+
+  ctx.state.pendingForkMessageIDs.add(messageID)
+  await postToWebview(ctx.panel.webview, { type: "forkStarted", messageID })
+
+  try {
+    const status = (await rt.sdk.session.status({ directory: rt.dir })).data?.[ctx.ref.sessionId]
+    if (status?.type && status.type !== "idle") {
+      throw new Error("Wait for the current response to finish before creating a fork.")
+    }
+
+    const nextMessageID = nextMessageIDAfter(ctx, messageID)
+    const result = await rt.sdk.session.fork({
+      sessionID: ctx.ref.sessionId,
+      directory: rt.dir,
+      ...(nextMessageID ? { messageID: nextMessageID } : {}),
+    })
+    const session = result.data
+    if (!session?.id) {
+      throw new Error("OpenCode did not return the new session.")
+    }
+
+    await ctx.sessions.refresh(ctx.ref.workspaceId, true)
+    try {
+      const loaded = await rt.sdk.session.get({
+        sessionID: session.id,
+        directory: rt.dir,
+      })
+      if (!loaded.data) {
+        throw new Error("OpenCode returned no session data.")
+      }
+    } catch (err) {
+      ctx.log(`fork created but new session could not be loaded: ${textError(err)}`)
+      throw new Error("Fork was created, but the new session could not be loaded.")
+    }
+
+    await vscode.commands.executeCommand("opencode-ui.openSessionById", ctx.ref, session.id)
+    await postToWebview(ctx.panel.webview, {
+      type: "forkCompleted",
+      sourceMessageID: messageID,
+      newSessionID: session.id,
+    })
+  } catch (err) {
+    const message = forkErrorMessage(textError(err))
+    ctx.log(`fork message failed: source=${messageID} ${message}`)
+    await forkFailed(ctx, messageID, message)
+  } finally {
+    ctx.state.pendingForkMessageIDs.delete(messageID)
+  }
 }
 
 export async function submit(ctx: ActionContext, textValue: string, parts?: ComposerPromptPart[], agent?: string, model?: MessageInfo["model"], variant?: string) {
@@ -496,6 +595,52 @@ export async function rejectQuestion(ctx: ActionContext, requestID: string) {
     ctx.log(`question reject failed: ${msg}`)
     await fail(ctx.panel.webview, msg)
   }
+}
+
+function sourceMessage(ctx: ActionContext, messageID: string) {
+  if (!messageID) {
+    return undefined
+  }
+
+  return ctx.messages().find((message) => (
+    message.info.id === messageID
+    && message.info.sessionID === ctx.ref.sessionId
+    && isOrdinaryMessage(message)
+  ))
+}
+
+function nextMessageIDAfter(ctx: ActionContext, messageID: string) {
+  const messages = ctx.messages()
+  const sourceIndex = messages.findIndex((message) => (
+    message.info.id === messageID
+    && message.info.sessionID === ctx.ref.sessionId
+    && isOrdinaryMessage(message)
+  ))
+
+  return messages
+    .slice(sourceIndex + 1)
+    .find((message) => message.info.sessionID === ctx.ref.sessionId && isOrdinaryMessage(message))
+    ?.info.id
+}
+
+function isOrdinaryMessage(message: SessionMessage) {
+  return message.info.role === "user" || message.info.role === "assistant"
+}
+
+async function forkFailed(ctx: ActionContext, messageID: string, error: string) {
+  await postToWebview(ctx.panel.webview, {
+    type: "forkFailed",
+    messageID,
+    error,
+  })
+}
+
+function forkErrorMessage(message: string) {
+  if (/\b404\b|not found|unknown route|endpoint/i.test(message)) {
+    return "Fork requires a newer version of OpenCode."
+  }
+
+  return message || "Failed to create fork from this message."
 }
 
 export async function fail(webview: vscode.Webview, message: string) {

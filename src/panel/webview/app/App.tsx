@@ -52,6 +52,8 @@ export function App() {
   const [escPending, setEscPending] = React.useState(false)
   const [leaderPending, setLeaderPending] = React.useState(false)
   const [pendingMcpActions, setPendingMcpActions] = React.useState<Record<string, boolean>>({})
+  const [copiedMessageID, setCopiedMessageID] = React.useState<string | undefined>()
+  const [forkingMessageID, setForkingMessageID] = React.useState<string | undefined>()
   const [fileResults, setFileResults] = React.useState<ComposerPathResult[]>([])
   const [fileSearch, setFileSearch] = React.useState<{ status: "idle" | "searching" | "done"; query: string }>({ status: "idle", query: "" })
   const [composerDrag, setComposerDrag] = React.useState<null | "attachment" | "mention">(null)
@@ -67,6 +69,7 @@ export function App() {
   const autocompleteDismissedRef = React.useRef<null | { trigger: ComposerAutocompleteState["trigger"]; query: string; start: number; end: number }>(null)
   const leaderTimerRef = React.useRef<number | null>(null)
   const leaderPendingRef = React.useRef(false)
+  const copiedMessageTimerRef = React.useRef<number | null>(null)
   const onFileSearchResults = React.useCallback((payload: { requestID: string; query: string; results: ComposerPathResult[] }) => {
     if (!searchRef.current || payload.requestID !== searchRef.current.requestID) {
       return
@@ -257,9 +260,37 @@ export function App() {
     restoreComposerCursor(result.draft, result.draft.length)
   }, [restoreComposerCursor, setComposerState])
 
+  const onMessageCopied = React.useCallback((messageID: string) => {
+    setCopiedMessageID(messageID)
+    if (copiedMessageTimerRef.current !== null) {
+      window.clearTimeout(copiedMessageTimerRef.current)
+    }
+    copiedMessageTimerRef.current = window.setTimeout(() => {
+      setCopiedMessageID((current) => current === messageID ? undefined : current)
+      copiedMessageTimerRef.current = null
+    }, 1400)
+  }, [])
+
+  const onForkStarted = React.useCallback((messageID: string) => {
+    setForkingMessageID(messageID)
+  }, [])
+
+  const onForkCompleted = React.useCallback((messageID: string) => {
+    setForkingMessageID((current) => current === messageID ? undefined : current)
+  }, [])
+
+  const onForkFailed = React.useCallback(({ messageID, error }: { messageID: string; error: string }) => {
+    setForkingMessageID((current) => current === messageID ? undefined : current)
+    setState((current) => ({ ...current, error }))
+  }, [])
+
   useHostMessages({
     fileRefStatus,
     onFileSearchResults,
+    onForkCompleted,
+    onForkFailed,
+    onForkStarted,
+    onMessageCopied,
     onRestoreComposer,
     onShellCommandSucceeded: exitShellMode,
     setPendingMcpActions,
@@ -608,6 +639,15 @@ export function App() {
 
   const navigateSession = React.useCallback((sessionID: string) => {
     vscode.postMessage({ type: "navigateSession", sessionID })
+  }, [])
+
+  const copyMessage = React.useCallback((messageID: string) => {
+    vscode.postMessage({ type: "copyMessage", messageID })
+  }, [])
+
+  const forkMessage = React.useCallback((messageID: string) => {
+    setForkingMessageID(messageID)
+    vscode.postMessage({ type: "forkSessionFromMessage", messageID })
   }, [])
 
   const postNewSession = React.useCallback(() => {
@@ -966,6 +1006,11 @@ export function App() {
                     EmptyState={EmptyState}
                     MarkdownBlock={MarkdownBlock}
                     PartView={PartView}
+                    copiedMessageID={copiedMessageID}
+                    forkingMessageID={forkingMessageID}
+                    forkDisabled={isSessionRunning(state.snapshot.sessionStatus)}
+                    onCopyMessage={copyMessage}
+                    onForkMessage={forkMessage}
                   />
                 </div>
               </main>

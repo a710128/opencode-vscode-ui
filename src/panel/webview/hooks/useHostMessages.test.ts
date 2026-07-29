@@ -52,6 +52,29 @@ describe("dispatchHostMessage", () => {
     assert.equal(restored, "echo hi")
   })
 
+  test("dispatches message copy and fork lifecycle events to their callbacks", () => {
+    const events: string[] = []
+    const handlers = {
+      fileRefStatus: new Map<string, boolean>(),
+      onFileSearchResults: () => {},
+      onRestoreComposer: () => {},
+      onShellCommandSucceeded: () => {},
+      onMessageCopied: (messageID: string) => events.push(`copy:${messageID}`),
+      onForkStarted: (messageID: string) => events.push(`start:${messageID}`),
+      onForkCompleted: (messageID: string) => events.push(`complete:${messageID}`),
+      onForkFailed: ({ messageID, error }: { messageID: string; error: string }) => events.push(`failed:${messageID}:${error}`),
+      setPendingMcpActions: (() => {}) as Dispatch<SetStateAction<Record<string, boolean>>>,
+      setState: (() => {}) as Dispatch<SetStateAction<AppState>>,
+    }
+
+    dispatchHostMessage({ type: "messageCopied", messageID: "m1" }, handlers)
+    dispatchHostMessage({ type: "forkStarted", messageID: "m1" }, handlers)
+    dispatchHostMessage({ type: "forkCompleted", sourceMessageID: "m1", newSessionID: "child" }, handlers)
+    dispatchHostMessage({ type: "forkFailed", messageID: "m2", error: "offline" }, handlers)
+
+    assert.deepEqual(events, ["copy:m1", "start:m1", "complete:m1", "failed:m2:offline"])
+  })
+
   test("applies sessionEvent incrementally and preserves unchanged message references", () => {
     const fileRefStatus = new Map<string, boolean>()
     let state = createInitialState({

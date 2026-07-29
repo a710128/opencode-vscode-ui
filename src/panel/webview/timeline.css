@@ -48,8 +48,80 @@
   color: var(--oc-fg-muted);
 }
 
+.oc-messageActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  margin: -3px 0 8px;
+  padding: 0 12px;
+  color: var(--oc-fg-muted);
+  opacity: 0.64;
+  transition: opacity 120ms ease;
+}
+
+.oc-messageActions:hover,
+.oc-messageActions:focus-within {
+  opacity: 1;
+}
+
+.oc-messageAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--oc-font-size-sm);
+}
+
+.oc-messageAction:hover:not(:disabled) {
+  border-color: var(--oc-border-strong);
+  background: var(--oc-surface-control);
+  color: var(--oc-fg-primary);
+}
+
+.oc-messageAction:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, var(--oc-accent));
+  outline-offset: 1px;
+}
+
+.oc-messageAction:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.oc-messageAction svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
+}
+
+.oc-messageActionSpinner {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: oc-messageActionSpin 700ms linear infinite;
+}
+
+@keyframes oc-messageActionSpin {
+  to { transform: rotate(360deg); }
+}
+
 .oc-turnUser,
 .oc-turnMeta,
+.oc-messageActions,
 .oc-revertNotice,
 .oc-toolRowWrap,
 .oc-dividerPart,
