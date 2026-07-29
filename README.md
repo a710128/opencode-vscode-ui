@@ -11,6 +11,7 @@ Stay in the editor, keep context intact, and manage OpenCode where the code alre
 - **Browse sessions by workspace folder** from the Activity Bar
 - **Open every conversation in its own VS Code tab**
 - **Track todos and changed files beside the active session**
+- **Copy a message or fork a new session from any point** in the conversation
 - **Use it in local folders and Remote SSH workspaces**
 - **Catch missing `opencode` setup early** with built-in environment checks
 
@@ -43,6 +44,7 @@ Companion views help you track session-generated tasks and inspect which files c
 - One OpenCode runtime per workspace folder
 - Session browser with create, open, refresh, and delete actions
 - A dedicated panel for each workspace-session pair
+- Copy message text and fork a session from a message to branch the conversation
 - Todo and modified file companion views
 - Built-in environment checks with clearer `opencode` setup feedback
 
@@ -89,9 +91,3 @@ If you use Remote SSH, **install `opencode` on the remote host** so the extensio
 ## Feedback 💬
 
 Have an idea or hit a bug? Open an issue at <https://github.com/a710128/opencode-vscode-ui/issues>.
-
-
-## Build vsix
-
-1. `bunx @vscode/vsce package --no-dependencies`
-2. Устанавить через Extensions → ... → Install from VSIX
